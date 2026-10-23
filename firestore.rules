@@ -1,0 +1,150 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------
+    // Helper Functions for Strict Role & Identity Enforcement
+    // -------------------------------------------------------------
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.superAdmin == true || 
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super_admin')
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.admin == true || 
+        request.auth.token.superAdmin == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super_admin', 'shop_admin'])
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // -------------------------------------------------------------
+    // 1. Users Collection: Customer & Staff Profiles
+    // -------------------------------------------------------------
+    match /users/{userId} {
+      // Super Admin and Admins can read all users; customers can read their own
+      allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
+
+      // Super Admin can create any user account (shop_admin, employee, etc.)
+      // Regular customers can create their own profile without privileged roles
+      allow create: if isSuperAdmin() 
+                    || (
+                      isOwner(userId)
+                      && (!('role' in request.resource.data) || request.resource.data.role == 'customer')
+                      && (!('admin' in request.resource.data) || request.resource.data.admin != true)
+                      && (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin != true)
+                    );
+
+      // Super Admin can update any user; Admins can update non-superadmin accounts
+      // Regular customer can update profile fields, but CANNOT touch roles or admin flags
+      allow update: if isSuperAdmin()
+                    || (isAdmin() && (!('role' in resource.data) || resource.data.role != 'super_admin'))
+                    || (
+                      isOwner(userId) 
+                      && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'admin', 'isAdmin', 'superAdmin'])
+                    );
+
+      // Only Super Admin can delete user records
+      allow delete: if isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // 2. Products Collection: Public catalog data
+    // -------------------------------------------------------------
+    match /products/{productId} {
+      // Storefront visitors & customers can browse all products
+      allow read: if true;
+
+      // Verified administrators and super admins can create, edit, or delete catalog products
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // 3. Categories Collection: Public catalog categorization
+    // -------------------------------------------------------------
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // 4. Orders Collection: Customer billing & order records
+    // -------------------------------------------------------------
+    match /orders/{orderId} {
+      // Verified admins can view all orders. Customers can only view their own orders.
+      allow read: if isAdmin() || isSuperAdmin() || (isAuthenticated() && resource.data.customerUid == request.auth.uid);
+
+      // Authenticated customers can place orders with their UID; guest checkout supported with guest tag
+      allow create: if (isAuthenticated() && request.resource.data.customerUid == request.auth.uid)
+                    || (request.resource.data.customerUid == 'guest')
+                    || isAdmin()
+                    || isSuperAdmin();
+
+      // Customers CANNOT modify placed orders (protects status, paymentStatus, totals).
+      // Only administrators can update status or edit orders.
+      allow update: if isAdmin() || isSuperAdmin();
+
+      // Only administrators / super admins can delete order records
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // 5. Enquiries Collection: Customer queries & lead capture
+    // -------------------------------------------------------------
+    match /enquiries/{enquiryId} {
+      // Any visitor can submit an inquiry
+      allow create: if true;
+
+      // Only verified administrators can inspect, reply to, or delete enquiries
+      allow read, update, delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // 6. Settings Collection: Store configuration & content CMS
+    // -------------------------------------------------------------
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // 7. Customers Collection: Showroom customer directory
+    // -------------------------------------------------------------
+    match /customers/{customerId} {
+      allow read: if isAdmin() || isSuperAdmin();
+      allow write: if true; // Allows billing and orders to upsert customer records
+    }
+
+    // -------------------------------------------------------------
+    // 8. Reviews & Feedback Collection: Customer reviews & contact feedback
+    // -------------------------------------------------------------
+    match /reviews/{reviewId} {
+      // Any customer or visitor can submit a review / feedback from the website
+      allow create: if true;
+      // Allow reading feedback and reviews
+      allow read: if true;
+      // Administrators can update status and delete reviews
+      allow update, delete: if isAdmin() || isSuperAdmin();
+    }
+
+    // -------------------------------------------------------------
+    // Default Deny: All unknown collections and unauthorized paths
+    // -------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

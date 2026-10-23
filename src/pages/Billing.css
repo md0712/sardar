@@ -1,0 +1,888 @@
+/* ==========================================================================
+   Showroom POS Billing & Tax Invoicing — Exact Reference Design
+   ========================================================================== */
+
+.pos-billing-container {
+  background-color: #f8fafc;
+  min-height: 100vh;
+  padding: 18px 24px 60px;
+  color: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+/* 1. Top Header Row */
+.pos-top-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.pos-top-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.pos-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.pos-brand-tag {
+  color: #7c3aed;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.pos-brand-sub {
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.pos-main-heading {
+  font-size: 1.55rem;
+  font-weight: 850;
+  color: #0f172a;
+  margin: 2px 0 3px;
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.pos-sub-lead {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.pos-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-pos-clear {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pos-clear:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn-pos-orders {
+  background: #0f172a;
+  color: #ffffff;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pos-orders:hover {
+  background: #1e293b;
+}
+
+/* Base Card Styling */
+.pos-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-sizing: border-box;
+}
+
+.pos-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.head-icon-purple {
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+
+.card-head-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+/* 2. Customer Information Card */
+.customer-info-card {
+  margin-bottom: 18px;
+}
+
+.client-type-toggle {
+  display: flex;
+  gap: 6px;
+  background: #f8fafc;
+  padding: 3px;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.toggle-pill {
+  padding: 3px 12px;
+  border-radius: 16px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  transition: all 0.15s ease;
+}
+
+.toggle-pill.active {
+  background: #ffffff;
+  color: #7c3aed;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.customer-select-row {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customer-fields-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 2fr 1.6fr;
+  gap: 12px;
+}
+
+.pos-field-label {
+  font-size: 0.68rem;
+  font-weight: 750;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pos-text-input,
+.pos-select-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.15s ease;
+}
+
+.pos-text-input:focus,
+.pos-select-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+.city-pin-inputs-pair {
+  display: flex;
+  gap: 8px;
+}
+
+.city-half {
+  flex: 1.2;
+}
+
+.pin-half {
+  flex: 0.8;
+}
+
+/* 3. Main 2-Column POS Layout */
+.pos-main-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1.15fr;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.pos-left-column,
+.pos-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Left Column: Catalog */
+.btn-pos-custom-charge {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px dashed #c4b5fd;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-pos-custom-charge:hover {
+  background: #ede9fe;
+}
+
+.pos-search-row {
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.pos-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+}
+
+.pos-search-input {
+  width: 100%;
+  padding: 8px 12px 8px 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  outline: none;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.pos-search-input:focus {
+  border-color: #7c3aed;
+}
+
+.pos-category-pills {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.pos-cat-pill {
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-cat-pill.active {
+  background: #7c3aed;
+  color: #ffffff;
+  border-color: #7c3aed;
+}
+
+/* 6-Column Product Tiles Grid */
+.pos-products-6col-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.pos-product-tile {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 7px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: all 0.15s ease;
+}
+
+.pos-product-tile:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.pos-product-tile.tile-selected {
+  border-color: #7c3aed;
+  background: #faf7ff;
+}
+
+.tile-thumb-box {
+  position: relative;
+  width: 100%;
+  height: 85px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.tile-cat-badge {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
+  font-size: 0.58rem;
+  font-weight: 750;
+  padding: 1px 5px;
+  border-radius: 3px;
+  z-index: 2;
+  text-transform: uppercase;
+}
+
+.tile-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tile-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.tile-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.25;
+  height: 30px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.tile-price {
+  font-size: 0.8rem;
+  font-weight: 850;
+  color: #7c3aed;
+  margin-top: 2px;
+}
+
+.tile-stock {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #16a34a;
+  margin-top: 1px;
+}
+
+.tile-add-btn {
+  width: 100%;
+  border: 1px solid #c4b5fd;
+  background: #ffffff;
+  color: #7c3aed;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-top: auto;
+}
+
+.tile-add-btn:hover {
+  background: #f5f3ff;
+}
+
+.tile-add-btn.btn-added {
+  background: #7c3aed;
+  color: #ffffff;
+  border-color: #7c3aed;
+}
+
+/* Right Column: Bill Summary */
+.btn-pos-clear-cart {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-pos-clear-cart:hover {
+  text-decoration: underline;
+}
+
+.bill-items-viewport {
+  min-height: 140px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+.empty-bill-box {
+  text-align: center;
+  padding: 24px 10px;
+}
+
+.empty-receipt-icon {
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.empty-bill-heading {
+  font-size: 0.84rem;
+  font-weight: 750;
+  color: #475569;
+  margin: 0 0 2px;
+}
+
+.empty-bill-desc {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.bill-items-scroll-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bill-row-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.bill-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+}
+
+.bill-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.bill-title {
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bill-unit-price {
+  font-size: 0.66rem;
+  color: #64748b;
+}
+
+.bill-qty-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.pos-qty-stepper {
+  display: inline-flex;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.pos-qty-stepper button {
+  background: #f8fafc;
+  border: none;
+  padding: 1px 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #334155;
+}
+
+.pos-qty-stepper span {
+  padding: 0 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 14px;
+  text-align: center;
+}
+
+.btn-bill-del {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.btn-bill-del:hover {
+  color: #dc2626;
+}
+
+.bill-total-price {
+  font-size: 0.82rem;
+  font-weight: 850;
+  color: #0f172a;
+  flex-shrink: 0;
+}
+
+/* Pricing Breakdown */
+.pos-pricing-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.pos-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.pos-price-row.pos-taxable-row {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 5px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.pos-price-row.pos-gst-selector-row {
+  margin-top: 2px;
+  background: #f1f5f9;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.gst-label-with-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pos-gst-dropdown {
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1.5px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0f172a;
+  outline: none;
+  cursor: pointer;
+}
+
+.pos-gst-dropdown:focus {
+  border-color: #0284c7;
+}
+
+.gst-rate-active-pill {
+  background: #0284c7;
+  color: #ffffff;
+  font-size: 0.70rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 12px;
+}
+
+.pos-price-row.pos-gst-row {
+  padding-left: 10px;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.pos-price-row.pos-total-gst-row {
+  background: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #f1f5f9;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.text-gst {
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.text-gst-total {
+  color: #0284c7;
+  font-weight: 800;
+}
+
+.pos-price-row.with-input-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pos-num-input {
+  width: 68px;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  text-align: right;
+  outline: none;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.pos-num-input:focus {
+  border-color: #7c3aed;
+}
+
+/* Exact Lavender Grand Total Box from Reference Image */
+.pos-grand-total-lavender-banner {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.grand-title-text {
+  font-size: 0.88rem;
+  font-weight: 850;
+  color: #6d28d9;
+  margin: 0;
+}
+
+.grand-gst-subtitle {
+  font-size: 0.68rem;
+  color: #8b5cf6;
+  display: block;
+  margin-top: 2px;
+}
+
+.grand-amount-number {
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #6d28d9;
+}
+
+/* Payment Method Selection: 6 items in 3x2 grid */
+.pos-payment-methods-box {
+  margin-top: 10px;
+}
+
+.payment-options-3x2-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.pay-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 7px 6px;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 650;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.pay-mode-btn:hover {
+  border-color: #cbd5e1;
+}
+
+.pay-mode-btn.active {
+  border: 1.5px solid #7c3aed;
+  background: #faf7ff;
+  color: #6d28d9;
+}
+
+.radio-circle-indicator {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 1.5px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pay-mode-btn.active .radio-circle-indicator {
+  border-color: #7c3aed;
+}
+
+.radio-dot-inner {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7c3aed;
+}
+
+/* Status Dropdowns */
+.pos-status-dropdowns-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.status-select {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Remarks */
+.remarks-input-wrap {
+  margin-top: 10px;
+  margin-bottom: 12px;
+}
+
+.remarks-input {
+  width: 100%;
+}
+
+/* Big Purple CTA Button */
+.btn-pos-generate-bill {
+  width: 100%;
+  background: #6d28d9;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(109, 40, 217, 0.22);
+}
+
+.btn-pos-generate-bill:hover:not(:disabled) {
+  background: #5b21b6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(109, 40, 217, 0.32);
+}
+
+.btn-pos-generate-bill:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.pos-save-orders-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: #475569;
+}
+
+.save-check-icon {
+  color: #7c3aed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1280px) {
+  .pos-products-6col-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .pos-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-fields-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pos-products-6col-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .customer-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pos-products-6col-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .payment-options-3x2-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pos-status-dropdowns-row {
+    grid-template-columns: 1fr;
+  }
+}
