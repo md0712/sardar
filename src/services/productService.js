@@ -12,7 +12,6 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { products as initialProducts } from '../data/products';
 
 const PRODUCTS_COLLECTION = 'products';
 
@@ -102,13 +101,37 @@ export async function getProductById(productId) {
  */
 export async function createProduct(productData) {
   const colRef = collection(db, PRODUCTS_COLLECTION);
+
+  // Clean features array: support both { name, value } and legacy string features
+  const cleanFeatures = Array.isArray(productData.features)
+    ? productData.features
+        .filter(f => f && (typeof f === 'string' || (f.name && f.name.trim())))
+        .map(f => typeof f === 'string' ? { name: 'Feature', value: f.trim() } : { name: f.name.trim(), value: (f.value || '').trim() })
+    : [];
+
+  // Clean additionalInformation array
+  const cleanAdditionalInfo = Array.isArray(productData.additionalInformation)
+    ? productData.additionalInformation
+        .filter(f => f && f.name && f.name.trim())
+        .map(f => ({ name: f.name.trim(), value: (f.value || '').trim() }))
+    : [];
+
   const rawData = {
     ...productData,
-    price: Number(productData.price) || 0,
-    originalPrice: Number(productData.originalPrice) || Number(productData.price) || 0,
+    name: productData.name || productData.title || '',
+    title: productData.title || productData.name || '',
+    modelNumber: (productData.modelNumber || '').trim(),
+    price: Number(productData.price ?? productData.sellingPrice) || 0,
+    sellingPrice: Number(productData.sellingPrice ?? productData.price) || 0,
+    originalPrice: Number(productData.originalPrice ?? productData.originalMRP) || Number(productData.price ?? productData.sellingPrice) || 0,
+    originalMRP: Number(productData.originalMRP ?? productData.originalPrice) || Number(productData.price ?? productData.sellingPrice) || 0,
     discount: Number(productData.discount) || 0,
-    stock: Number(productData.stock) || 10,
+    stock: productData.stock !== undefined && productData.stock !== '' ? Math.max(0, parseInt(productData.stock, 10)) : 10,
+    features: cleanFeatures,
+    additionalInformation: cleanAdditionalInfo,
     active: productData.active !== undefined ? productData.active : true,
+    image: productData.image || productData.imageUrl || '',
+    imageUrl: productData.imageUrl || productData.image || '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };
@@ -138,9 +161,55 @@ export async function updateProduct(productId, updates) {
     ...updates,
     updatedAt: serverTimestamp()
   };
-  if (updates.price !== undefined) rawUpdates.price = Number(updates.price);
-  if (updates.originalPrice !== undefined) rawUpdates.originalPrice = Number(updates.originalPrice);
-  if (updates.stock !== undefined) rawUpdates.stock = Number(updates.stock);
+
+  if (updates.name !== undefined) {
+    rawUpdates.name = updates.name;
+    rawUpdates.title = updates.name;
+  }
+  if (updates.title !== undefined) {
+    rawUpdates.title = updates.title;
+    rawUpdates.name = updates.title;
+  }
+  if (updates.modelNumber !== undefined) {
+    rawUpdates.modelNumber = (updates.modelNumber || '').trim();
+  }
+  if (updates.price !== undefined) {
+    rawUpdates.price = Number(updates.price);
+    rawUpdates.sellingPrice = Number(updates.price);
+  }
+  if (updates.sellingPrice !== undefined) {
+    rawUpdates.sellingPrice = Number(updates.sellingPrice);
+    rawUpdates.price = Number(updates.sellingPrice);
+  }
+  if (updates.originalPrice !== undefined) {
+    rawUpdates.originalPrice = Number(updates.originalPrice);
+    rawUpdates.originalMRP = Number(updates.originalPrice);
+  }
+  if (updates.originalMRP !== undefined) {
+    rawUpdates.originalMRP = Number(updates.originalMRP);
+    rawUpdates.originalPrice = Number(updates.originalMRP);
+  }
+  if (updates.image !== undefined) {
+    rawUpdates.image = updates.image;
+    rawUpdates.imageUrl = updates.image;
+  }
+  if (updates.imageUrl !== undefined) {
+    rawUpdates.imageUrl = updates.imageUrl;
+    rawUpdates.image = updates.imageUrl;
+  }
+  if (updates.stock !== undefined && updates.stock !== '') {
+    rawUpdates.stock = Math.max(0, parseInt(updates.stock, 10));
+  }
+  if (updates.features !== undefined && Array.isArray(updates.features)) {
+    rawUpdates.features = updates.features
+      .filter(f => f && (typeof f === 'string' || (f.name && f.name.trim())))
+      .map(f => typeof f === 'string' ? { name: 'Feature', value: f.trim() } : { name: f.name.trim(), value: (f.value || '').trim() });
+  }
+  if (updates.additionalInformation !== undefined && Array.isArray(updates.additionalInformation)) {
+    rawUpdates.additionalInformation = updates.additionalInformation
+      .filter(f => f && f.name && f.name.trim())
+      .map(f => ({ name: f.name.trim(), value: (f.value || '').trim() }));
+  }
 
   // Strip any undefined keys
   const cleanUpdates = Object.entries(rawUpdates).reduce((acc, [k, v]) => {
@@ -159,29 +228,4 @@ export async function deleteProduct(productId) {
   const docRef = doc(db, PRODUCTS_COLLECTION, String(productId));
   await deleteDoc(docRef);
   return productId;
-}
-
-/**
- * Seed initial catalog to Firestore (Admin utility)
- * Copies bundled products into Firestore using a batch write.
- */
-export async function seedProductsToFirestore(productsList = initialProducts) {
-  const batch = writeBatch(db);
-  const now = new Date();
-
-  productsList.forEach((prod) => {
-    const docRef = doc(db, PRODUCTS_COLLECTION, String(prod.id));
-    batch.set(docRef, {
-      ...prod,
-      price: Number(prod.price) || 0,
-      originalPrice: Number(prod.originalPrice) || Number(prod.price) || 0,
-      active: true,
-      stock: prod.stock || 15,
-      createdAt: now,
-      updatedAt: now
-    });
-  });
-
-  await batch.commit();
-  return productsList.length;
 }

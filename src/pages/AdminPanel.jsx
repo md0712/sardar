@@ -11,7 +11,6 @@ import {
 import Billing from './Billing';
 import { createOrder } from '../services/orderService';
 import { useAuth } from '../context/AuthContext';
-import { seedProductsToFirestore } from '../services/productService';
 import { 
   getStaffUsers, 
   createStaffAccount, 
@@ -38,6 +37,7 @@ import {
 import { updatePassword, updateProfile } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import ProductImagePicker from '../components/ProductImagePicker';
+import ProductSpecificationsEditor from '../components/ProductSpecificationsEditor';
 import { 
   createPromoCode, 
   deletePromoCode, 
@@ -48,8 +48,7 @@ import {
   subscribeToCategories, 
   createCategory, 
   updateCategory, 
-  deleteCategory, 
-  seedCategoriesToFirestore 
+  deleteCategory
 } from '../services/categoryService';
 import AdminMobileNav from '../components/AdminMobileNav';
 
@@ -70,7 +69,6 @@ export default function AdminPanel({
   onPlaceOrder,
   onBackToStore,
   onLogoutAdmin,
-  onSeedCatalog,
   storeSettings: propStoreSettings
 }) {
   // Real Firebase Authentication and ID token custom claim verification
@@ -83,7 +81,6 @@ export default function AdminPanel({
   const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
 
   // Staff & Admin Management State (Super Admin)
   const [staffList, setStaffList] = useState([]);
@@ -123,6 +120,7 @@ export default function AdminPanel({
   const [customerSearch, setCustomerSearch] = useState('');
 
   const [editingOrder, setEditingOrder] = useState(null);
+  const [selectedOrderForDetails, setSelectedOrderForDetails] = useState(null);
   const [copiedOrderId, setCopiedOrderId] = useState(null);
 
   // Sales Chart Period
@@ -165,16 +163,64 @@ export default function AdminPanel({
   // New Product Form State
   const [newProduct, setNewProduct] = useState({
     name: '',
+    modelNumber: '',
     category: 'furniture',
     subcategory: 'sofas',
     price: '',
     originalPrice: '',
     discount: '25',
+    stock: 15,
     badge: 'BEST SELLER',
     image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
     description: '',
-    featured: true
+    featured: true,
+    features: [],
+    additionalInformation: []
   });
+  const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
+
+  // Helper to open Edit Product with safely normalized specifications & custom fields
+  const handleOpenEditProduct = (item) => {
+    let normalizedFeatures = [];
+    if (Array.isArray(item.features)) {
+      normalizedFeatures = item.features.map(f => {
+        if (typeof f === 'string') return { name: 'Specification', value: f };
+        if (f && typeof f === 'object') return { name: f.name || '', value: f.value || '' };
+        return null;
+      }).filter(Boolean);
+    } else if (item.specifications && typeof item.specifications === 'object') {
+      normalizedFeatures = Object.entries(item.specifications).map(([name, value]) => ({
+        name,
+        value: String(value || '')
+      }));
+    }
+
+    let normalizedAdditionalInfo = [];
+    if (Array.isArray(item.additionalInformation)) {
+      normalizedAdditionalInfo = item.additionalInformation.map(a => {
+        if (typeof a === 'string') return { name: 'Info', value: a };
+        if (a && typeof a === 'object') return { name: a.name || '', value: a.value || '' };
+        return null;
+      }).filter(Boolean);
+    }
+
+    setEditingProduct({
+      ...item,
+      name: item.name || item.title || '',
+      modelNumber: item.modelNumber || '',
+      category: item.category || 'furniture',
+      subcategory: item.subcategory || '',
+      price: item.price ?? item.sellingPrice ?? '',
+      originalPrice: item.originalPrice ?? item.originalMRP ?? '',
+      discount: item.discount ?? '',
+      stock: item.stock !== undefined ? item.stock : (item.stockCount !== undefined ? item.stockCount : 10),
+      badge: item.badge || '',
+      image: item.image || item.imageUrl || '',
+      description: item.description || '',
+      features: normalizedFeatures,
+      additionalInformation: normalizedAdditionalInfo
+    });
+  };
 
   const [toast, setToast] = useState('');
 
@@ -377,17 +423,6 @@ export default function AdminPanel({
     }
   };
 
-  const handleResetDefaultCategories = async () => {
-    if (window.confirm('Restore initial default 8 showroom categories to Cloud Firestore?')) {
-      try {
-        await seedCategoriesToFirestore();
-        showToast('Default 8 categories restored to Cloud Firestore!');
-      } catch (err) {
-        showToast(`Error restoring categories: ${err.message}`);
-      }
-    }
-  };
-
   // Handlers for Firebase Admin Authentication
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
@@ -468,24 +503,6 @@ export default function AdminPanel({
       }
     } catch (err) {
       console.warn('Logout error:', err);
-    }
-  };
-
-  const handleSeedCatalogClick = async () => {
-    if (window.confirm('Sync and seed the catalog into Cloud Firestore? This will populate the Firestore products collection with the store products.')) {
-      setIsSeeding(true);
-      try {
-        if (onSeedCatalog) {
-          await onSeedCatalog();
-        } else {
-          await seedProductsToFirestore();
-        }
-        showToast('Firestore catalog synced successfully!');
-      } catch (err) {
-        showToast('Seeding error: ' + err.message);
-      } finally {
-        setIsSeeding(false);
-      }
     }
   };
 
@@ -711,6 +728,12 @@ export default function AdminPanel({
   const totalOrdersCount = orders.length;
   const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const totalEnquiriesCount = enquiries.length;
+
+  // Products with stock < 5 trigger Low Stock Alert
+  const lowStockProducts = products.filter((p) => {
+    const s = p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 10;
+    return s < 5;
+  });
 
   // Real Category Analytics computed directly from live catalog
   const furnitureProducts = products.filter((p) => p.category === 'furniture');
@@ -1814,6 +1837,205 @@ export default function AdminPanel({
               </div>
             </div>
 
+            {/* Dedicated Low Stock Alert Card */}
+            <div className="low-stock-alert-card modern-card" style={{
+              margin: '22px 0',
+              padding: '22px 24px',
+              background: lowStockProducts.length > 0 ? '#fff8f6' : '#f0fdf4',
+              border: lowStockProducts.length > 0 ? '1.5px solid #fecaca' : '1px solid #bbf7d0',
+              borderRadius: '16px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: lowStockProducts.length > 0 ? '18px' : '0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '12px',
+                    background: lowStockProducts.length > 0 ? '#fee2e2' : '#dcfce7',
+                    color: lowStockProducts.length > 0 ? '#dc2626' : '#16a34a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: lowStockProducts.length > 0 ? '0 2px 8px rgba(220, 38, 38, 0.2)' : 'none'
+                  }}>
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.18rem', fontWeight: 700, color: '#1e293b' }}>
+                        Low Stock Alert
+                      </h3>
+                      <span style={{
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        padding: '3px 10px',
+                        borderRadius: '12px',
+                        background: lowStockProducts.length > 0 ? '#dc2626' : '#16a34a',
+                        color: '#ffffff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}>
+                        {lowStockProducts.length > 0 ? (
+                          <>⚠️ {lowStockProducts.length} {lowStockProducts.length === 1 ? 'Item' : 'Items'} Critical (&lt; 5 Units)</>
+                        ) : (
+                          <>✓ All Inventory Healthy (≥ 5 Units)</>
+                        )}
+                      </span>
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#64748b' }}>
+                      {lowStockProducts.length > 0
+                        ? 'Items with stock count less than 5 trigger automatic alerts. Restock promptly to avoid showroom backorders.'
+                        : 'All catalog products maintain sufficient inventory (5 or more units in stock).'}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab('products');
+                      setIsAddProductModalOpen(true);
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: '#ffffff',
+                      color: '#8c3b10',
+                      border: '1.5px solid #ebdcd0',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Plus size={14} /> Add New Stock
+                  </button>
+                  {lowStockProducts.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('products')}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        background: '#8c3b10',
+                        color: '#ffffff',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        fontSize: '0.82rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      View All in Catalog <ArrowRight size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {lowStockProducts.length > 0 ? (
+                <div style={{ overflowX: 'auto', background: '#ffffff', borderRadius: '12px', border: '1px solid #fecaca' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ background: '#fef2f2', borderBottom: '1px solid #fecaca', color: '#991b1b', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <th style={{ padding: '12px 18px' }}>Product</th>
+                        <th style={{ padding: '12px 16px' }}>Category</th>
+                        <th style={{ padding: '12px 16px' }}>Current Stock</th>
+                        <th style={{ padding: '12px 16px' }}>Selling Price</th>
+                        <th style={{ padding: '12px 18px', textAlign: 'right' }}>Restock Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lowStockProducts.map((p) => {
+                        const stockCount = p.stock !== undefined ? Number(p.stock) : 0;
+                        return (
+                          <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '12px 18px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <img
+                                  src={p.image || p.imageUrl || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=100'}
+                                  alt={p.name}
+                                  style={{ width: '42px', height: '42px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                                />
+                                <div>
+                                  <strong style={{ display: 'block', color: '#0f172a', fontWeight: 600, fontSize: '0.9rem' }}>
+                                    {p.name || p.title}
+                                  </strong>
+                                  {p.modelNumber && (
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Model: {p.modelNumber}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{
+                                textTransform: 'capitalize',
+                                color: '#475569',
+                                background: '#f1f5f9',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 500
+                              }}>
+                                {p.category}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: '#dc2626',
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                padding: '3px 10px',
+                                borderRadius: '12px',
+                                fontSize: '0.8rem',
+                                fontWeight: 700
+                              }}>
+                                <AlertCircle size={13} /> Only {stockCount} left
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', fontWeight: 600, color: '#0f172a' }}>
+                              {formatPrice(p.price || p.sellingPrice || 0)}
+                            </td>
+                            <td style={{ padding: '12px 18px', textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditProduct(p)}
+                                style={{
+                                  background: '#fff3ec',
+                                  color: '#8c3b10',
+                                  border: '1px solid #fcd34d',
+                                  padding: '6px 14px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.82rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <Edit3 size={13} /> Update Stock
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+
             {/* Visual Analytics Row: Sales Overview & Top Categories */}
             <div className="analytics-two-col-grid">
               {/* Left: Sales Overview Bar Chart */}
@@ -2047,15 +2269,6 @@ export default function AdminPanel({
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   className="add-quick-product-btn"
-                  onClick={handleSeedCatalogClick}
-                  disabled={isSeeding}
-                  style={{ background: '#78350f' }}
-                  title="Upload / Sync default catalog items directly into Cloud Firestore"
-                >
-                  <RefreshCw size={16} className={isSeeding ? 'animate-spin' : ''} /> {isSeeding ? 'Syncing...' : 'Sync to Firestore'}
-                </button>
-                <button 
-                  className="add-quick-product-btn"
                   onClick={() => setIsAddProductModalOpen(true)}
                 >
                   <Plus size={16} /> Add New Product
@@ -2108,8 +2321,12 @@ export default function AdminPanel({
                   {(() => {
                     const filtered = products.filter((p) => {
                       const matchCat = productCatFilter === 'all' || p.category === productCatFilter;
-                      const matchSearch = productSearch === '' || 
-                        p.name.toLowerCase().includes(productSearch.toLowerCase());
+                      const q = productSearch.toLowerCase().trim();
+                      const matchSearch = q === '' || 
+                        (p.name && p.name.toLowerCase().includes(q)) ||
+                        (p.title && p.title.toLowerCase().includes(q)) ||
+                        (p.id && p.id.toLowerCase().includes(q)) ||
+                        (p.modelNumber && p.modelNumber.toLowerCase().includes(q));
                       return matchCat && matchSearch;
                     });
                     if (filtered.length === 0) {
@@ -2129,10 +2346,25 @@ export default function AdminPanel({
                       <tr key={item.id}>
                         <td>
                           <div className="product-table-item-cell">
-                            <img src={item.image} alt={item.name} className="product-thumb-sm" />
+                            <img src={item.image || item.imageUrl} alt={item.name} className="product-thumb-sm" />
                             <div>
-                              <strong>{item.name}</strong>
-                              <small>ID: {item.id}</small>
+                              <strong>{item.name || item.title}</strong>
+                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '2px' }}>
+                                <small>ID: {item.id}</small>
+                                {item.modelNumber && (
+                                  <span style={{ 
+                                    fontSize: '0.72rem', 
+                                    fontWeight: 700, 
+                                    color: '#854d0e', 
+                                    background: '#fef3c7', 
+                                    padding: '1px 6px', 
+                                    borderRadius: '4px',
+                                    border: '1px solid #fde68a'
+                                  }}>
+                                    Model: {item.modelNumber}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -2150,13 +2382,49 @@ export default function AdminPanel({
                           )}
                         </td>
                         <td>
-                          <span className="in-stock-badge">In Stock</span>
+                          {(() => {
+                            const stockCount = item.stock !== undefined && item.stock !== '' ? Number(item.stock) : 10;
+                            if (stockCount < 5) {
+                              return (
+                                <span className="badge-low-stock" style={{
+                                  background: '#fef2f2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fecaca',
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}>
+                                  <AlertCircle size={12} /> Low: {stockCount} left
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="badge-in-stock" style={{
+                                background: '#f0fdf4',
+                                color: '#16a34a',
+                                border: '1px solid #bbf7d0',
+                                padding: '3px 9px',
+                                borderRadius: '12px',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <Check size={12} /> {stockCount} in stock
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td>
                           <div className="table-actions-group">
                             <button
                               className="table-action-icon-btn edit"
-                              onClick={() => setEditingProduct(item)}
+                              onClick={() => handleOpenEditProduct(item)}
                               title="Edit Product"
                             >
                               <Edit3 size={15} />
@@ -2366,8 +2634,7 @@ export default function AdminPanel({
                     <table className="admin-table orders-table modern-ui">
                       <thead>
                         <tr>
-                          <th style={{ width: '190px' }}>Order ID &amp; Placed On</th>
-                          <th style={{ width: '220px' }}>Customer Info</th>
+                          <th style={{ width: '250px' }}>Customer Info</th>
                           <th>Purchased Items</th>
                           <th style={{ width: '140px' }}>Order Total</th>
                           <th style={{ width: '175px' }}>Payment Mode</th>
@@ -2377,37 +2644,19 @@ export default function AdminPanel({
                       </thead>
                       <tbody>
                         {filteredOrders.map((ord) => {
-                          const isCopied = copiedOrderId === ord.id;
                           const custName = ord.customer?.name || 'Customer';
                           const custInitial = custName.charAt(0).toUpperCase();
                           const itemsCount = ord.items?.reduce((sum, i) => sum + (Number(i.quantity) || 1), 0) || 1;
                           const isPaid = ord.paymentStatus?.toLowerCase().includes('paid');
 
                           return (
-                            <tr key={ord.id} className="order-table-row modern">
-                              {/* Order ID & Placed Date */}
-                              <td className="order-id-cell">
-                                <div className="order-id-pill-row">
-                                  <span className="order-id-pill">#{ord.id}</span>
-                                  <button
-                                    type="button"
-                                    className={`btn-copy-order-id ${isCopied ? 'copied' : ''}`}
-                                    title={isCopied ? 'Copied!' : 'Copy Order ID'}
-                                    onClick={() => {
-                                      navigator.clipboard?.writeText(ord.id);
-                                      setCopiedOrderId(ord.id);
-                                      setTimeout(() => setCopiedOrderId(null), 1800);
-                                    }}
-                                  >
-                                    {isCopied ? <Check size={11} color="#16a34a" /> : <Copy size={11} />}
-                                  </button>
-                                </div>
-                                <div className="order-timestamp">
-                                  <Clock size={12} />
-                                  <span>{ord.date || 'Recent'}</span>
-                                </div>
-                              </td>
-
+                            <tr
+                              key={ord.id}
+                              className="order-table-row modern clickable-row"
+                              onClick={() => setSelectedOrderForDetails(ord)}
+                              title="Click to view complete order details & bill"
+                              style={{ cursor: 'pointer' }}
+                            >
                               {/* Customer Avatar & Details */}
                               <td className="customer-details-cell modern">
                                 <div className="customer-avatar-row">
@@ -2415,9 +2664,30 @@ export default function AdminPanel({
                                     {custInitial}
                                   </div>
                                   <div className="customer-meta-col">
-                                    <strong className="customer-name">{custName}</strong>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                      <strong className="customer-name">{custName}</strong>
+                                      <span style={{
+                                        fontSize: '0.7rem',
+                                        color: '#8c3b10',
+                                        background: '#fff3ec',
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        border: '1px solid #ebdcd0',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px'
+                                      }}>
+                                        <Eye size={10} /> View Details
+                                      </span>
+                                    </div>
                                     {ord.customer?.phone && (
-                                      <a href={`tel:${ord.customer.phone}`} className="customer-phone" title="Call Customer">
+                                      <a
+                                        href={`tel:${ord.customer.phone}`}
+                                        className="customer-phone"
+                                        title="Call Customer"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
                                         <Phone size={11} /> {ord.customer.phone}
                                       </a>
                                     )}
@@ -2469,7 +2739,7 @@ export default function AdminPanel({
                               </td>
 
                               {/* Live Status Selector */}
-                              <td className="live-status-cell">
+                              <td className="live-status-cell" onClick={(e) => e.stopPropagation()}>
                                 <div className="status-dropdown-wrapper">
                                   <span className={`status-indicator-dot ${ord.status?.toLowerCase().replace(/\s+/g, '-')}`}></span>
                                   <select
@@ -2488,7 +2758,7 @@ export default function AdminPanel({
                               </td>
 
                               {/* Actions */}
-                              <td className="order-actions-cell" style={{ textAlign: 'center' }}>
+                              <td className="order-actions-cell" style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                                 <div className="table-actions-group modern-actions">
                                   <button
                                     type="button"
@@ -2567,33 +2837,32 @@ export default function AdminPanel({
                       const isPaid = ord.paymentStatus?.toLowerCase().includes('paid');
 
                       return (
-                        <div key={ord.id} className="order-mobile-card modern">
-                          {/* Card Header: ID + Time + Status Selector */}
+                        <div
+                          key={ord.id}
+                          className="order-mobile-card modern clickable-card"
+                          onClick={() => setSelectedOrderForDetails(ord)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {/* Card Header: Details prompt + Status Selector */}
                           <div className="order-card-header-bar">
-                            <div className="order-card-id-group">
-                              <div className="order-id-pill-row">
-                                <span className="order-id-pill">#{ord.id}</span>
-                                <button
-                                  type="button"
-                                  className={`btn-copy-order-id ${isCopied ? 'copied' : ''}`}
-                                  title="Copy Order ID"
-                                  onClick={() => {
-                                    navigator.clipboard?.writeText(ord.id);
-                                    setCopiedOrderId(ord.id);
-                                    setTimeout(() => setCopiedOrderId(null), 1800);
-                                  }}
-                                >
-                                  {isCopied ? <Check size={11} color="#16a34a" /> : <Copy size={11} />}
-                                </button>
-                              </div>
-                              <span className="order-card-date">
-                                <Clock size={11} /> {ord.date || 'Recent'}
-                              </span>
-                            </div>
+                            <span style={{
+                              fontSize: '0.74rem',
+                              color: '#8c3b10',
+                              background: '#fff3ec',
+                              padding: '3px 8px',
+                              borderRadius: '6px',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <Eye size={12} /> Tap to View Details
+                            </span>
 
                             <select
                               className={`status-selector-input executive mini ${ord.status?.toLowerCase().replace(/\s+/g, '-')}`}
                               value={ord.status}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => onUpdateOrderStatus && onUpdateOrderStatus(ord.id, e.target.value)}
                             >
                               <option value="Order Placed">Order Placed</option>
@@ -2614,7 +2883,11 @@ export default function AdminPanel({
                               <strong className="customer-name">{custName}</strong>
                               <div className="customer-contact-meta">
                                 {ord.customer?.phone && (
-                                  <a href={`tel:${ord.customer.phone}`} className="customer-phone-chip">
+                                  <a
+                                    href={`tel:${ord.customer.phone}`}
+                                    className="customer-phone-chip"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <Phone size={11} /> {ord.customer.phone}
                                   </a>
                                 )}
@@ -2661,7 +2934,7 @@ export default function AdminPanel({
                           </div>
 
                           {/* Action Buttons Row */}
-                          <div className="order-card-actions-footer">
+                          <div className="order-card-actions-footer" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               className="btn-card-tax-invoice"
@@ -2858,27 +3131,6 @@ export default function AdminPanel({
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={handleResetDefaultCategories}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '9px 14px',
-                    borderRadius: '8px',
-                    border: '1.5px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#475569',
-                    fontSize: '0.85rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                  title="Reload the 8 default showroom categories into Firestore if needed"
-                >
-                  <RefreshCw size={14} /> Restore Defaults
-                </button>
-
                 <button 
                   type="button"
                   className="add-quick-product-btn"
@@ -2991,7 +3243,7 @@ export default function AdminPanel({
                     <h4 style={{ margin: '0 0 6px', color: '#1e293b' }}>No Categories Found</h4>
                     <p style={{ color: '#64748b', fontSize: '0.88rem', margin: '0 0 18px' }}>
                       {categoriesList.length === 0 
-                        ? 'No categories exist in Cloud Firestore yet. Click "Add New Category" or "Restore Defaults" above.'
+                        ? 'No categories exist in Cloud Firestore yet. Click "Add New Category" above.'
                         : 'No categories matched your filter criteria.'}
                     </p>
                     <button
@@ -4781,20 +5033,38 @@ export default function AdminPanel({
                                   <button
                                     type="button"
                                     onClick={() => handleToggleStaffStatus(staff)}
-                                    className="table-action-icon-btn"
+                                    className="staff-status-toggle-btn"
                                     title={staff.status === 'Active' ? 'Suspend Account' : 'Activate Account'}
                                     style={{
-                                      padding: '4px 8px',
-                                      fontSize: '0.75rem',
-                                      borderRadius: '4px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      padding: '5px 12px',
+                                      fontSize: '0.78rem',
+                                      borderRadius: '6px',
                                       background: staff.status === 'Active' ? '#fef2f2' : '#f0fdf4',
                                       color: staff.status === 'Active' ? '#dc2626' : '#16a34a',
-                                      border: '1px solid #ebd9cc',
+                                      border: staff.status === 'Active' ? '1px solid #fecaca' : '1px solid #bbf7d0',
                                       cursor: 'pointer',
-                                      fontWeight: 600
+                                      fontWeight: 600,
+                                      whiteSpace: 'nowrap',
+                                      width: 'auto',
+                                      height: '32px',
+                                      boxSizing: 'border-box',
+                                      transition: 'all 0.15s ease'
                                     }}
                                   >
-                                    {staff.status === 'Active' ? 'Suspend' : 'Activate'}
+                                    {staff.status === 'Active' ? (
+                                      <>
+                                        <ShieldAlert size={13} />
+                                        <span>Suspend</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle size={13} />
+                                        <span>Activate</span>
+                                      </>
+                                    )}
                                   </button>
                                   <button
                                     type="button"
@@ -5072,96 +5342,245 @@ export default function AdminPanel({
 
       {/* MODAL: ADD NEW PRODUCT */}
       {isAddProductModalOpen && (
-        <div className="admin-modal-overlay" onClick={() => setIsAddProductModalOpen(false)}>
-          <div className="admin-dialog-card" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal-overlay" onClick={() => !isSubmittingProduct && setIsAddProductModalOpen(false)}>
+          <div className="admin-dialog-card product-dialog-card-lg" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
-              <h4>Add New Product to Catalog</h4>
-              <button className="dialog-close-btn" onClick={() => setIsAddProductModalOpen(false)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Plus size={18} color="#ffffff" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1.12rem' }}>Add New Product to Catalog</h4>
+                  <small style={{ color: '#d1b8a7', fontSize: '0.78rem' }}>Publish new furniture or electronic product directly to live Firestore database</small>
+                </div>
+              </div>
+              <button 
+                className="dialog-close-btn" 
+                onClick={() => !isSubmittingProduct && setIsAddProductModalOpen(false)}
+                disabled={isSubmittingProduct}
+                title="Close modal"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newProduct.name || !newProduct.price) {
-                  alert('Please enter product name and price');
+                  alert('Please enter Product Title and Selling Price');
                   return;
                 }
+
+                // Filter out completely empty feature rows
+                const rawFeatures = newProduct.features || [];
+                const cleanFeatures = rawFeatures
+                  .filter(f => f && (f.name.trim() || f.value.trim()))
+                  .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+
+                const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
+                if (invalidFeature) {
+                  alert('Each specification row must have both a Feature Name and a Feature Value. Please complete or delete empty fields.');
+                  return;
+                }
+
+                // Filter out completely empty custom fields
+                const rawAdditionalInfo = newProduct.additionalInformation || [];
+                const cleanAdditionalInfo = rawAdditionalInfo
+                  .filter(a => a && (a.name.trim() || a.value.trim()))
+                  .map(a => ({ name: a.name.trim(), value: a.value.trim() }));
+
+                const invalidCustom = cleanAdditionalInfo.find(a => !a.name || !a.value);
+                if (invalidCustom) {
+                  alert('Each custom field must have both a Field Name and a Field Value. Please complete or delete empty fields.');
+                  return;
+                }
+
+                const priceNum = parseFloat(newProduct.price) || 0;
+                const origPriceNum = newProduct.originalPrice ? parseFloat(newProduct.originalPrice) : Math.round(priceNum * 1.28);
+                const discountNum = Math.max(0, Math.round(((origPriceNum - priceNum) / (origPriceNum || 1)) * 100));
+
                 const created = {
-                  id: 'hk-' + Date.now().toString(36),
-                  name: newProduct.name,
-                  category: newProduct.category,
-                  subcategory: newProduct.subcategory,
-                  price: parseFloat(newProduct.price),
-                  originalPrice: parseFloat(newProduct.originalPrice || newProduct.price * 1.3),
-                  discount: parseInt(newProduct.discount) || 20,
-                  badge: newProduct.badge,
-                  image: newProduct.image,
-                  description: newProduct.description || 'Premium furniture piece handcrafted with durable finishes.',
-                  featured: newProduct.featured,
+                  id: 'hk-' + (newProduct.category || 'prod').slice(0, 4) + '-' + Date.now().toString(36),
+                  name: newProduct.name.trim(),
+                  title: newProduct.name.trim(),
+                  modelNumber: (newProduct.modelNumber || '').trim(),
+                  category: newProduct.category || 'furniture',
+                  subcategory: newProduct.subcategory || (newProduct.category === 'electronics' ? 'tvs' : 'sofas'),
+                  price: priceNum,
+                  sellingPrice: priceNum,
+                  originalPrice: origPriceNum,
+                  originalMRP: origPriceNum,
+                  discount: discountNum,
+                  stock: newProduct.stock !== undefined && newProduct.stock !== '' ? Math.max(0, parseInt(newProduct.stock, 10)) : 10,
+                  badge: (newProduct.badge || '').trim() || null,
+                  image: newProduct.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+                  imageUrl: newProduct.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+                  description: (newProduct.description || '').trim() || 'Showroom verified premium addition to Sardar Mart Furniture and Home Appliances catalog.',
+                  features: cleanFeatures,
+                  additionalInformation: cleanAdditionalInfo,
+                  featured: Boolean(newProduct.featured),
                   rating: 4.8,
                   reviews: 12
                 };
-                onAddProduct && onAddProduct(created);
-                setIsAddProductModalOpen(false);
-                showToast(`Product "${created.name}" published!`);
+
+                setIsSubmittingProduct(true);
+                try {
+                  if (onAddProduct) {
+                    await onAddProduct(created);
+                  }
+                  setIsAddProductModalOpen(false);
+                  showToast(`Product "${created.name}" published to catalog!`);
+                  setNewProduct({
+                    name: '',
+                    modelNumber: '',
+                    category: 'furniture',
+                    subcategory: 'sofas',
+                    price: '',
+                    originalPrice: '',
+                    discount: '25',
+                    stock: 15,
+                    badge: 'BEST SELLER',
+                    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+                    description: '',
+                    featured: true,
+                    features: [],
+                    additionalInformation: []
+                  });
+                } catch (err) {
+                  alert('Error publishing product: ' + err.message);
+                } finally {
+                  setIsSubmittingProduct(false);
+                }
               }}
-              className="dialog-form-body"
+              className="dialog-form-body product-modal-scrollable"
             >
-              <div className="dialog-grid">
-                <div className="form-field-group full-width">
-                  <label>Product Title *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Royal Chesterfield 3-Seater Velvet Sofa"
-                    value={newProduct.name}
-                    onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                  />
+              {/* SECTION 1: BASIC INFORMATION */}
+              <div className="product-form-section">
+                <div className="product-section-title-wrap">
+                  <span className="product-section-num">1</span>
+                  <div>
+                    <h5 className="product-section-heading">Basic Information</h5>
+                    <p className="product-section-sub">Enter the product title, model number, category, and promotional badge.</p>
+                  </div>
                 </div>
 
-                <div className="form-field-group">
-                  <label>Department Category</label>
-                  <select
-                    value={newProduct.category}
-                    onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
-                  >
-                    <option value="furniture">Furniture</option>
-                    <option value="electronics">Electronics</option>
-                    <option value="appliances">Home Appliances</option>
-                  </select>
+                <div className="dialog-grid">
+                  <div className="form-field-group full-width">
+                    <label>Product Title *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Royal Chesterfield 3-Seater Velvet Sofa or Samsung Frost Free Refrigerator"
+                      value={newProduct.name}
+                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-field-group">
+                    <label>
+                      Model Number <span style={{ fontWeight: 400, color: '#64748b' }}>(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Samsung RT28C3453S8 or FUR-3S-001"
+                      value={newProduct.modelNumber}
+                      onChange={(e) => setNewProduct({ ...newProduct, modelNumber: e.target.value })}
+                    />
+                    <small style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>
+                      Alphanumeric model code for warranty &amp; inventory tracking
+                    </small>
+                  </div>
+
+                  <div className="form-field-group">
+                    <label>Department Category</label>
+                    <select
+                      value={newProduct.category}
+                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                    >
+                      <option value="furniture">Furniture</option>
+                      <option value="electronics">Electronics</option>
+                      <option value="appliances">Home Appliances</option>
+                    </select>
+                  </div>
+
+                  <div className="form-field-group full-width">
+                    <label>Promotional Badge</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. BEST SELLER or HOT DEAL"
+                      value={newProduct.badge}
+                      onChange={(e) => setNewProduct({ ...newProduct, badge: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: PRICING & STOCK INVENTORY */}
+              <div className="product-form-section">
+                <div className="product-section-title-wrap">
+                  <span className="product-section-num">2</span>
+                  <div>
+                    <h5 className="product-section-heading">Pricing &amp; Stock Inventory</h5>
+                    <p className="product-section-sub">Define customer selling price, original MRP, and stock count (less than 5 triggers Low Stock Alert).</p>
+                  </div>
                 </div>
 
-                <div className="form-field-group">
-                  <label>Promotional Badge</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. BEST SELLER or HOT DEAL"
-                    value={newProduct.badge}
-                    onChange={(e) => setNewProduct({ ...newProduct, badge: e.target.value })}
-                  />
-                </div>
+                <div className="dialog-grid">
+                  <div className="form-field-group">
+                    <label>Selling Price (₹) *</label>
+                    <input
+                      type="number"
+                      required
+                      placeholder="e.g. 29999"
+                      value={newProduct.price}
+                      onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                    />
+                  </div>
 
-                <div className="form-field-group">
-                  <label>Selling Price (₹) *</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 29999"
-                    value={newProduct.price}
-                    onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                  />
-                </div>
+                  <div className="form-field-group">
+                    <label>Original MRP (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 42000"
+                      value={newProduct.originalPrice}
+                      onChange={(e) => setNewProduct({ ...newProduct, originalPrice: e.target.value })}
+                    />
+                  </div>
 
-                <div className="form-field-group">
-                  <label>Original MRP (₹)</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 42000"
-                    value={newProduct.originalPrice}
-                    onChange={(e) => setNewProduct({ ...newProduct, originalPrice: e.target.value })}
-                  />
+                  <div className="form-field-group full-width">
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>Stock Count (Units in Stock) *</span>
+                      {newProduct.stock !== '' && Number(newProduct.stock) < 5 && (
+                        <span style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <AlertCircle size={12} /> Low Stock Alert Triggered (&lt; 5 Units)
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="e.g. 15"
+                      value={newProduct.stock !== undefined ? newProduct.stock : ''}
+                      onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value === '' ? '' : parseInt(e.target.value, 10) })}
+                      style={newProduct.stock !== '' && Number(newProduct.stock) < 5 ? { borderColor: '#ef4444', background: '#fef2f2' } : {}}
+                    />
+                    <small style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '3px' }}>
+                      Stock counts below 5 units automatically trigger the Low Stock Alert on the Admin Dashboard.
+                    </small>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: PRODUCT IMAGE */}
+              <div className="product-form-section">
+                <div className="product-section-title-wrap">
+                  <span className="product-section-num">3</span>
+                  <div>
+                    <h5 className="product-section-heading">Product Showcase Image</h5>
+                    <p className="product-section-sub">Upload a high-quality product photo or provide an image link.</p>
+                  </div>
                 </div>
 
                 <div className="form-field-group full-width">
@@ -5174,16 +5593,34 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              <div className="dialog-footer-actions">
+              {/* SECTION 4 & 5: DYNAMIC FEATURES & ADDITIONAL INFORMATION */}
+              <div className="product-form-section" style={{ borderBottom: 'none' }}>
+                <ProductSpecificationsEditor
+                  features={newProduct.features}
+                  onFeaturesChange={(updated) => setNewProduct({ ...newProduct, features: updated })}
+                  additionalInformation={newProduct.additionalInformation}
+                  onAdditionalInfoChange={(updated) => setNewProduct({ ...newProduct, additionalInformation: updated })}
+                  category={newProduct.category}
+                />
+              </div>
+
+              <div className="dialog-footer-actions sticky-dialog-footer">
                 <button
                   type="button"
                   className="btn-cancel"
                   onClick={() => setIsAddProductModalOpen(false)}
+                  disabled={isSubmittingProduct}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-confirm">
-                  Publish to Catalog
+                <button type="submit" className="btn-confirm" disabled={isSubmittingProduct}>
+                  {isSubmittingProduct ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 size={16} className="animate-spin" /> Publishing...
+                    </span>
+                  ) : (
+                    'Publish to Catalog'
+                  )}
                 </button>
               </div>
             </form>
@@ -5193,70 +5630,226 @@ export default function AdminPanel({
 
       {/* MODAL: EDIT PRODUCT */}
       {editingProduct && (
-        <div className="admin-modal-overlay" onClick={() => setEditingProduct(null)}>
-          <div className="admin-dialog-card" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal-overlay" onClick={() => !isSubmittingProduct && setEditingProduct(null)}>
+          <div className="admin-dialog-card product-dialog-card-lg" onClick={(e) => e.stopPropagation()}>
             <div className="dialog-header">
-              <h4>Edit Product Details</h4>
-              <button className="dialog-close-btn" onClick={() => setEditingProduct(null)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(255, 255, 255, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Edit3 size={18} color="#ffffff" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '1.12rem' }}>Edit Product Details</h4>
+                  <small style={{ color: '#d1b8a7', fontSize: '0.78rem' }}>Update title, model number, specifications, custom fields, and pricing</small>
+                </div>
+              </div>
+              <button 
+                className="dialog-close-btn" 
+                onClick={() => !isSubmittingProduct && setEditingProduct(null)}
+                disabled={isSubmittingProduct}
+                title="Close modal"
+              >
                 <X size={18} />
               </button>
             </div>
 
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                onEditProduct && onEditProduct(editingProduct.id, editingProduct);
-                setEditingProduct(null);
-                showToast(`Updated "${editingProduct.name}"`);
+                if (!editingProduct.name || !editingProduct.price) {
+                  alert('Please enter Product Title and Selling Price');
+                  return;
+                }
+
+                // Filter out completely empty feature rows
+                const rawFeatures = editingProduct.features || [];
+                const cleanFeatures = rawFeatures
+                  .filter(f => f && (f.name.trim() || f.value.trim()))
+                  .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+
+                const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
+                if (invalidFeature) {
+                  alert('Each specification row must have both a Feature Name and a Feature Value. Please complete or delete empty fields.');
+                  return;
+                }
+
+                // Filter out completely empty custom fields
+                const rawAdditionalInfo = editingProduct.additionalInformation || [];
+                const cleanAdditionalInfo = rawAdditionalInfo
+                  .filter(a => a && (a.name.trim() || a.value.trim()))
+                  .map(a => ({ name: a.name.trim(), value: a.value.trim() }));
+
+                const invalidCustom = cleanAdditionalInfo.find(a => !a.name || !a.value);
+                if (invalidCustom) {
+                  alert('Each custom field must have both a Field Name and a Field Value. Please complete or delete empty fields.');
+                  return;
+                }
+
+                const priceNum = parseFloat(editingProduct.price) || 0;
+                const origPriceNum = editingProduct.originalPrice ? parseFloat(editingProduct.originalPrice) : Math.round(priceNum * 1.25);
+                const discountNum = editingProduct.discount !== '' && editingProduct.discount !== undefined
+                  ? parseInt(editingProduct.discount)
+                  : Math.max(0, Math.round(((origPriceNum - priceNum) / (origPriceNum || 1)) * 100));
+
+                const updated = {
+                  ...editingProduct,
+                  name: editingProduct.name.trim(),
+                  title: editingProduct.name.trim(),
+                  modelNumber: (editingProduct.modelNumber || '').trim(),
+                  category: editingProduct.category,
+                  price: priceNum,
+                  sellingPrice: priceNum,
+                  originalPrice: origPriceNum,
+                  originalMRP: origPriceNum,
+                  discount: discountNum,
+                  stock: editingProduct.stock !== undefined && editingProduct.stock !== '' ? Math.max(0, parseInt(editingProduct.stock, 10)) : 10,
+                  badge: (editingProduct.badge || '').trim() || null,
+                  image: editingProduct.image,
+                  imageUrl: editingProduct.image,
+                  features: cleanFeatures,
+                  additionalInformation: cleanAdditionalInfo
+                };
+
+                setIsSubmittingProduct(true);
+                try {
+                  if (onEditProduct) {
+                    await onEditProduct(editingProduct.id, updated);
+                  }
+                  setEditingProduct(null);
+                  showToast(`Updated "${updated.name}" successfully!`);
+                } catch (err) {
+                  alert('Error updating product: ' + err.message);
+                } finally {
+                  setIsSubmittingProduct(false);
+                }
               }}
-              className="dialog-form-body"
+              className="dialog-form-body product-modal-scrollable"
             >
-              <div className="dialog-grid">
-                <div className="form-field-group full-width">
-                  <label>Product Title</label>
-                  <input
-                    type="text"
-                    value={editingProduct.name}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                    required
-                  />
+              {/* SECTION 1: BASIC INFORMATION */}
+              <div className="product-form-section">
+                <div className="product-section-title-wrap">
+                  <span className="product-section-num">1</span>
+                  <div>
+                    <h5 className="product-section-heading">Basic Information</h5>
+                    <p className="product-section-sub">Update product title, model number, department category, and badge.</p>
+                  </div>
                 </div>
 
-                <div className="form-field-group">
-                  <label>Selling Price (₹)</label>
-                  <input
-                    type="number"
-                    value={editingProduct.price}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) || 0 })}
-                    required
-                  />
+                <div className="dialog-grid">
+                  <div className="form-field-group full-width">
+                    <label>Product Title *</label>
+                    <input
+                      type="text"
+                      value={editingProduct.name}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-field-group">
+                    <label>
+                      Model Number <span style={{ fontWeight: 400, color: '#64748b' }}>(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Samsung RT28C3453S8 or FUR-3S-001"
+                      value={editingProduct.modelNumber || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, modelNumber: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-field-group">
+                    <label>Department Category</label>
+                    <select
+                      value={editingProduct.category}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                    >
+                      <option value="furniture">Furniture</option>
+                      <option value="electronics">Electronics</option>
+                      <option value="appliances">Home Appliances</option>
+                    </select>
+                  </div>
+
+                  <div className="form-field-group full-width">
+                    <label>Badge</label>
+                    <input
+                      type="text"
+                      value={editingProduct.badge || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, badge: e.target.value })}
+                      placeholder="e.g. BEST SELLER or HOT DEAL"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: PRICING & STOCK INVENTORY */}
+              <div className="product-form-section">
+                <div className="product-section-title-wrap">
+                  <span className="product-section-num">2</span>
+                  <div>
+                    <h5 className="product-section-heading">Pricing &amp; Stock Inventory</h5>
+                    <p className="product-section-sub">Adjust selling price, original MRP, discount, and units in stock (less than 5 units triggers Low Stock Alert).</p>
+                  </div>
                 </div>
 
-                <div className="form-field-group">
-                  <label>Original MRP (₹)</label>
-                  <input
-                    type="number"
-                    value={editingProduct.originalPrice || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, originalPrice: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
+                <div className="dialog-grid">
+                  <div className="form-field-group">
+                    <label>Selling Price (₹) *</label>
+                    <input
+                      type="number"
+                      value={editingProduct.price}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
 
-                <div className="form-field-group">
-                  <label>Discount (%)</label>
-                  <input
-                    type="number"
-                    value={editingProduct.discount || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, discount: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
+                  <div className="form-field-group">
+                    <label>Original MRP (₹)</label>
+                    <input
+                      type="number"
+                      value={editingProduct.originalPrice || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, originalPrice: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
 
-                <div className="form-field-group">
-                  <label>Badge</label>
-                  <input
-                    type="text"
-                    value={editingProduct.badge || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, badge: e.target.value })}
-                  />
+                  <div className="form-field-group">
+                    <label>Discount (%)</label>
+                    <input
+                      type="number"
+                      value={editingProduct.discount ?? ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, discount: e.target.value === '' ? '' : parseInt(e.target.value) || 0 })}
+                    />
+                  </div>
+
+                  <div className="form-field-group">
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>Stock Count *</span>
+                      {editingProduct.stock !== '' && Number(editingProduct.stock) < 5 && (
+                        <span style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                          <AlertCircle size={12} /> Low Alert (&lt; 5)
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="e.g. 15"
+                      value={editingProduct.stock !== undefined ? editingProduct.stock : ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, stock: e.target.value === '' ? '' : parseInt(e.target.value, 10) })}
+                      style={editingProduct.stock !== '' && Number(editingProduct.stock) < 5 ? { borderColor: '#ef4444', background: '#fef2f2' } : {}}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 3: PRODUCT IMAGE */}
+              <div className="product-form-section">
+                <div className="product-section-title-wrap">
+                  <span className="product-section-num">3</span>
+                  <div>
+                    <h5 className="product-section-heading">Product Showcase Image</h5>
+                    <p className="product-section-sub">Change photo upload or update the image URL.</p>
+                  </div>
                 </div>
 
                 <div className="form-field-group full-width">
@@ -5268,16 +5861,34 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              <div className="dialog-footer-actions">
+              {/* SECTION 4 & 5: DYNAMIC FEATURES & ADDITIONAL INFORMATION */}
+              <div className="product-form-section" style={{ borderBottom: 'none' }}>
+                <ProductSpecificationsEditor
+                  features={editingProduct.features || []}
+                  onFeaturesChange={(updated) => setEditingProduct({ ...editingProduct, features: updated })}
+                  additionalInformation={editingProduct.additionalInformation || []}
+                  onAdditionalInfoChange={(updated) => setEditingProduct({ ...editingProduct, additionalInformation: updated })}
+                  category={editingProduct.category}
+                />
+              </div>
+
+              <div className="dialog-footer-actions sticky-dialog-footer">
                 <button
                   type="button"
                   className="btn-cancel"
                   onClick={() => setEditingProduct(null)}
+                  disabled={isSubmittingProduct}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-confirm">
-                  Save Changes
+                <button type="submit" className="btn-confirm" disabled={isSubmittingProduct}>
+                  {isSubmittingProduct ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                      <Loader2 size={16} className="animate-spin" /> Saving Changes...
+                    </span>
+                  ) : (
+                    'Save Changes'
+                  )}
                 </button>
               </div>
             </form>
@@ -5450,6 +6061,434 @@ export default function AdminPanel({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: COMPREHENSIVE ORDER DETAILS & TAX INVOICE */}
+      {selectedOrderForDetails && (
+        <div className="admin-modal-overlay" onClick={() => setSelectedOrderForDetails(null)}>
+          <div
+            className="admin-dialog-card"
+            style={{
+              maxWidth: '780px',
+              width: '100%',
+              borderRadius: '18px',
+              overflow: 'hidden',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.4)',
+              background: '#ffffff',
+              margin: '20px'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              className="dialog-header"
+              style={{
+                padding: '18px 24px',
+                background: 'linear-gradient(135deg, #2a1810 0%, #451a03 100%)',
+                color: '#ffffff',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ background: 'rgba(251, 191, 36, 0.2)', padding: '8px', borderRadius: '10px', display: 'flex', alignItems: 'center' }}>
+                  <ShoppingBag size={22} color="#fbbf24" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h4 style={{ margin: 0, fontSize: '1.22rem', fontWeight: 700, color: '#ffffff', letterSpacing: '0.2px' }}>
+                      Order Details
+                    </h4>
+                    <span style={{
+                      background: 'rgba(255, 255, 255, 0.2)',
+                      color: '#ffffff',
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontFamily: 'monospace',
+                      fontSize: '0.82rem',
+                      fontWeight: 600
+                    }}>
+                      #{selectedOrderForDetails.id}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', color: '#d6d3d1', fontSize: '0.78rem' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={12} /> Placed on: {selectedOrderForDetails.date || 'Recent'}
+                    </span>
+                    <span>•</span>
+                    <span style={{
+                      background: selectedOrderForDetails.paymentStatus?.toLowerCase().includes('paid') ? '#dcfce7' : '#fef3c7',
+                      color: selectedOrderForDetails.paymentStatus?.toLowerCase().includes('paid') ? '#15803d' : '#b45309',
+                      padding: '1px 6px',
+                      borderRadius: '4px',
+                      fontWeight: 700,
+                      fontSize: '0.72rem'
+                    }}>
+                      {selectedOrderForDetails.paymentStatus?.toLowerCase().includes('paid') ? '✓ Paid' : 'Pending Payment'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="dialog-close-btn"
+                onClick={() => setSelectedOrderForDetails(null)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background 0.2s'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', maxHeight: 'calc(85vh - 120px)', overflowY: 'auto' }}>
+              {/* Grid: Customer Info & Order Status */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '18px', marginBottom: '22px' }}>
+                {/* Customer Information Card */}
+                <div style={{
+                  padding: '16px 18px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', fontWeight: 700 }}>
+                      Customer Profile
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ord = selectedOrderForDetails;
+                        setSelectedOrderForDetails(null);
+                        setEditingOrder(ord);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#8c3b10',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                    >
+                      <Edit3 size={11} /> Edit
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #8c3b10 0%, #b45309 100%)',
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: '1.1rem'
+                    }}>
+                      {(selectedOrderForDetails.customer?.name || 'Customer').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '1rem', color: '#0f172a' }}>
+                        {selectedOrderForDetails.customer?.name || 'Customer'}
+                      </strong>
+                      <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                        Customer ID: {selectedOrderForDetails.userId || 'Guest Checkout'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.84rem' }}>
+                    {selectedOrderForDetails.customer?.phone && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Phone size={13} color="#8c3b10" />
+                        <a href={`tel:${selectedOrderForDetails.customer.phone}`} style={{ color: '#0f172a', fontWeight: 600, textDecoration: 'none' }}>
+                          {selectedOrderForDetails.customer.phone}
+                        </a>
+                      </div>
+                    )}
+                    {selectedOrderForDetails.customer?.email && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Mail size={13} color="#8c3b10" />
+                        <span style={{ color: '#475569' }}>{selectedOrderForDetails.customer.email}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '2px' }}>
+                      <MapPin size={14} color="#8c3b10" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span style={{ color: '#334155', lineHeight: 1.4 }}>
+                        {selectedOrderForDetails.customer?.address || 'Showroom Pickup'}
+                        {selectedOrderForDetails.customer?.city ? `, ${selectedOrderForDetails.customer.city}` : ''}
+                        {selectedOrderForDetails.customer?.pincode ? ` - ${selectedOrderForDetails.customer.pincode}` : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Status & Payment Meta */}
+                <div style={{
+                  padding: '16px 18px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', fontWeight: 700, display: 'block', marginBottom: '10px' }}>
+                      Fulfillment &amp; Payment
+                    </span>
+
+                    <div style={{ marginBottom: '12px' }}>
+                      <label style={{ display: 'block', fontSize: '0.78rem', color: '#64748b', marginBottom: '4px' }}>
+                        Current Fulfillment Status
+                      </label>
+                      <select
+                        className={`status-selector-input executive ${selectedOrderForDetails.status?.toLowerCase().replace(/\s+/g, '-')}`}
+                        value={selectedOrderForDetails.status}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          setSelectedOrderForDetails({ ...selectedOrderForDetails, status: newStatus });
+                          if (onUpdateOrderStatus) onUpdateOrderStatus(selectedOrderForDetails.id, newStatus);
+                        }}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', fontWeight: 600 }}
+                      >
+                        <option value="Order Placed">🟡 Order Placed</option>
+                        <option value="Confirmed">🟣 Confirmed</option>
+                        <option value="Packed">📦 Packed</option>
+                        <option value="Out for Delivery">🚀 Out for Delivery</option>
+                        <option value="Delivered">🟢 Delivered</option>
+                        <option value="Cancelled">🔴 Cancelled</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.82rem' }}>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>Payment Mode</span>
+                        <strong style={{ color: '#0f172a' }}>{selectedOrderForDetails.paymentMethod || 'Online'}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '0.74rem' }}>Settlement</span>
+                        <strong style={{ color: selectedOrderForDetails.paymentStatus?.toLowerCase().includes('paid') ? '#15803d' : '#b45309' }}>
+                          {selectedOrderForDetails.paymentStatus || 'Pending'}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: '#fff3ec',
+                    border: '1px solid #ebdcd0',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontSize: '0.82rem', color: '#8c3b10', fontWeight: 600 }}>Total Order Value:</span>
+                    <strong style={{ fontSize: '1.05rem', color: '#8c3b10', fontWeight: 800 }}>
+                      {formatPrice(selectedOrderForDetails.total)}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Ordered List Table */}
+              <div style={{ marginBottom: '20px' }}>
+                <h5 style={{ margin: '0 0 10px', fontSize: '0.92rem', color: '#1e293b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Purchased Items ({selectedOrderForDetails.items?.length || 0})
+                </h5>
+                <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.88rem' }}>
+                    <thead>
+                      <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase' }}>
+                        <th style={{ padding: '10px 16px' }}>Item</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'center' }}>Qty</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'right' }}>Price</th>
+                        <th style={{ padding: '10px 16px', textAlign: 'right' }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedOrderForDetails.items?.map((it, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '12px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {it.image ? (
+                                <img
+                                  src={it.image}
+                                  alt={it.name}
+                                  style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #e2e8f0' }}
+                                />
+                              ) : (
+                                <div style={{ width: '40px', height: '40px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+                                  <Package size={18} />
+                                </div>
+                              )}
+                              <div>
+                                <strong style={{ display: 'block', color: '#0f172a', fontWeight: 600 }}>{it.name}</strong>
+                                {it.modelNumber && (
+                                  <span style={{ fontSize: '0.74rem', color: '#64748b' }}>Model: {it.modelNumber}</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', fontWeight: 600, color: '#334155' }}>
+                            ×{it.quantity || 1}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', color: '#64748b' }}>
+                            {formatPrice(it.price || 0)}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#0f172a' }}>
+                            {formatPrice((it.price || 0) * (it.quantity || 1))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Pricing Breakdown Summary */}
+              <div style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '14px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                maxWidth: '340px',
+                marginLeft: 'auto',
+                fontSize: '0.86rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span>Subtotal:</span>
+                  <span>{formatPrice(selectedOrderForDetails.subtotal || selectedOrderForDetails.total)}</span>
+                </div>
+                {selectedOrderForDetails.discount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a' }}>
+                    <span>Promo Discount:</span>
+                    <span>- {formatPrice(selectedOrderForDetails.discount)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                  <span>Delivery Charges:</span>
+                  <span>{selectedOrderForDetails.deliveryCharge ? formatPrice(selectedOrderForDetails.deliveryCharge) : 'FREE'}</span>
+                </div>
+                <div style={{
+                  borderTop: '1px dashed #cbd5e1',
+                  paddingTop: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  fontWeight: 800,
+                  fontSize: '1.05rem',
+                  color: '#8c3b10'
+                }}>
+                  <span>Grand Total:</span>
+                  <span>{formatPrice(selectedOrderForDetails.total)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer with Prominent View Bill Option */}
+            <div
+              className="dialog-footer-actions"
+              style={{
+                padding: '16px 24px',
+                background: '#f8fafc',
+                borderTop: '1px solid #e2e8f0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={() => setSelectedOrderForDetails(null)}
+                style={{ padding: '9px 18px', borderRadius: '8px' }}
+              >
+                Close
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ord = selectedOrderForDetails;
+                    setSelectedOrderForDetails(null);
+                    setEditingOrder(ord);
+                  }}
+                  style={{
+                    background: '#ffffff',
+                    color: '#475569',
+                    border: '1.5px solid #cbd5e1',
+                    borderRadius: '8px',
+                    padding: '9px 16px',
+                    fontSize: '0.86rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Edit3 size={15} /> Edit Order
+                </button>
+
+                {/* View Bill / Tax Invoice Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ord = selectedOrderForDetails;
+                    setSelectedOrderForDetails(null);
+                    if (onViewInvoice) {
+                      onViewInvoice(ord);
+                    }
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #8c3b10 0%, #b45309 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '9px 20px',
+                    fontSize: '0.88rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 14px rgba(140, 59, 16, 0.35)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Printer size={16} /> View Bill / Tax Invoice
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -8410,6 +9449,92 @@ export default function AdminPanel({
           font-weight: 700;
           font-size: 0.86rem;
           cursor: pointer;
+        }
+
+        /* Enhanced Product Specification Dialog Styling */
+        .product-dialog-card-lg {
+          max-width: 840px !important;
+          max-height: 92vh !important;
+          display: flex;
+          flex-direction: column;
+          border-radius: 16px;
+        }
+        .product-modal-scrollable {
+          overflow-y: auto;
+          max-height: calc(92vh - 140px);
+          padding: 24px 28px;
+          display: flex;
+          flex-direction: column;
+          gap: 20px;
+        }
+        .product-form-section {
+          background: #ffffff;
+          border: 1px solid #ebdcd0;
+          border-radius: 12px;
+          padding: 18px 20px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+        .product-section-title-wrap {
+          display: flex;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+        .product-section-num {
+          width: 26px;
+          height: 26px;
+          border-radius: 50%;
+          background: #78350f;
+          color: #ffffff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.76rem;
+          font-weight: 800;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+        .product-section-heading {
+          font-size: 1rem;
+          font-weight: 700;
+          color: #2b170e;
+          margin: 0 0 2px 0;
+        }
+        .product-section-sub {
+          font-size: 0.8rem;
+          color: #64748b;
+          margin: 0;
+          line-height: 1.35;
+        }
+        .sticky-dialog-footer {
+          position: sticky;
+          bottom: 0;
+          background: #ffffff;
+          border-top: 1px solid #ebdcd0;
+          padding: 16px 28px;
+          margin: 0 -28px -24px -28px;
+          z-index: 20;
+          box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.04);
+        }
+        @media (max-width: 768px) {
+          .product-dialog-card-lg {
+            max-width: 96vw !important;
+            max-height: 95vh !important;
+          }
+          .product-modal-scrollable {
+            padding: 16px;
+            max-height: calc(95vh - 130px);
+          }
+          .product-form-section {
+            padding: 14px;
+          }
+          .dialog-grid {
+            grid-template-columns: 1fr;
+          }
+          .sticky-dialog-footer {
+            margin: 0 -16px -16px -16px;
+            padding: 12px 16px;
+          }
         }
 
         /* Mobile Responsive */

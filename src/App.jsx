@@ -28,8 +28,7 @@ import {
   subscribeToProducts,
   createProduct, 
   updateProduct, 
-  deleteProduct, 
-  seedProductsToFirestore 
+  deleteProduct
 } from './services/productService';
 import { 
   createOrder, 
@@ -41,7 +40,6 @@ import {
 import { subscribeToPromoCodes } from './services/promoService';
 import { subscribeToCategories } from './services/categoryService';
 
-import { products as initialProducts, categories as initialCategories } from './data/products';
 import { MessageCircle, ArrowUp } from 'lucide-react';
 
 
@@ -162,9 +160,9 @@ function AppContent() {
   const [categories, setCategories] = useState(() => {
     try {
       const saved = localStorage.getItem('sef_categories');
-      return saved ? JSON.parse(saved) : initialCategories;
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return initialCategories;
+      return [];
     }
   });
 
@@ -419,14 +417,6 @@ function AppContent() {
     }
   };
 
-  // Seed default catalog to Firestore (Admin action)
-  const handleSeedCatalog = async () => {
-    const count = await seedProductsToFirestore(initialProducts);
-    const refreshed = await getProducts();
-    setCatalogProducts(refreshed);
-    return count;
-  };
-
   // Track Order & Invoice openers
   const handleOpenTrackOrder = (orderId = '') => {
     setTrackOrderId(orderId);
@@ -474,7 +464,6 @@ function AppContent() {
             setCurrentPage('home');
             window.location.hash = '';
           }}
-          onSeedCatalog={handleSeedCatalog}
         />
 
         {/* Printable Tax Invoice Modal */}

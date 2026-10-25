@@ -5,7 +5,6 @@ import {
   CreditCard, Share2, Info 
 } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
-import { products } from '../data/products';
 import { subscribeToStoreSettings, DEFAULT_STORE_CONFIG } from '../services/settingsService';
 
 export default function ProductDetails({ 
@@ -36,7 +35,9 @@ export default function ProductDetails({
     gallery = [image],
     description,
     features = [],
-    specifications = {}
+    specifications = {},
+    modelNumber = '',
+    additionalInformation = []
   } = product;
 
   const [activeImage, setActiveImage] = useState(gallery[0] || image);
@@ -223,7 +224,23 @@ export default function ProductDetails({
           {/* Right Column: Product Info & Actions */}
           <div className="info-column">
             <div className="title-share-row">
-              <span className="sku-tag">SKU: {id.toUpperCase()}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span className="sku-tag">SKU: {id.toUpperCase()}</span>
+                {modelNumber && (
+                  <span className="model-badge-tag" style={{
+                    background: '#fdf6ed',
+                    color: '#854d0e',
+                    border: '1px solid #ead6c5',
+                    padding: '2px 9px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.02em'
+                  }}>
+                    Model: {modelNumber}
+                  </span>
+                )}
+              </div>
               <button className="share-btn" onClick={handleShare} title="Share product">
                 <Share2 size={16} /> Share
               </button>
@@ -266,11 +283,17 @@ export default function ProductDetails({
               <div className="features-bullet-list">
                 <h4>Key Highlights:</h4>
                 <ul>
-                  {features.map((feat, i) => (
-                    <li key={i}>
-                      <span className="check-bullet">✓</span> {feat}
-                    </li>
-                  ))}
+                  {features.map((feat, i) => {
+                    const text = typeof feat === 'string' 
+                      ? feat 
+                      : (feat && feat.name ? `${feat.name}: ${feat.value}` : '');
+                    if (!text) return null;
+                    return (
+                      <li key={i}>
+                        <span className="check-bullet">✓</span> {text}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -379,14 +402,31 @@ export default function ProductDetails({
           <div className="specs-table-wrapper">
             <table className="specs-table">
               <tbody>
-                {Object.entries(specifications).map(([key, value], idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? 'even-row' : ''}>
+                {modelNumber && (
+                  <tr className="even-row">
+                    <td className="spec-key"><strong>Model Number</strong></td>
+                    <td className="spec-val"><strong style={{ color: '#78350f' }}>{modelNumber}</strong></td>
+                  </tr>
+                )}
+                {/* Dynamic Features array */}
+                {Array.isArray(features) && features.map((feat, idx) => {
+                  if (!feat || typeof feat !== 'object' || !feat.name) return null;
+                  return (
+                    <tr key={`feat-${idx}`} className={(idx + (modelNumber ? 1 : 0)) % 2 === 0 ? 'even-row' : ''}>
+                      <td className="spec-key">{feat.name}</td>
+                      <td className="spec-val">{feat.value || 'Yes'}</td>
+                    </tr>
+                  );
+                })}
+                {/* Legacy specifications object */}
+                {specifications && typeof specifications === 'object' && !Array.isArray(specifications) && Object.entries(specifications).map(([key, value], idx) => (
+                  <tr key={`spec-${idx}`} className={idx % 2 === 0 ? 'even-row' : ''}>
                     <td className="spec-key">{key}</td>
                     <td className="spec-val">{value}</td>
                   </tr>
                 ))}
                 <tr>
-                  <td className="spec-key">Product Model</td>
+                  <td className="spec-key">Catalog Item SKU</td>
                   <td className="spec-val">{id.toUpperCase()}</td>
                 </tr>
                 <tr>
@@ -397,6 +437,25 @@ export default function ProductDetails({
             </table>
           </div>
         </div>
+
+        {/* Additional Information Section (Custom Fields) */}
+        {Array.isArray(additionalInformation) && additionalInformation.filter(item => item && item.name && item.name.trim()).length > 0 && (
+          <div className="specifications-section additional-info-section" style={{ marginTop: '30px' }}>
+            <h3 className="section-title">Additional Information &amp; Services</h3>
+            <div className="specs-table-wrapper">
+              <table className="specs-table">
+                <tbody>
+                  {additionalInformation.filter(item => item && item.name && item.name.trim()).map((item, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'even-row' : ''}>
+                      <td className="spec-key">{item.name}</td>
+                      <td className="spec-val">{item.value || 'Included / Standard'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Related Products */}
         {relatedProducts.length > 0 && (

@@ -12,7 +12,6 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { categories as defaultCategories } from '../data/products';
 
 const CATEGORIES_COLLECTION = 'categories';
 
@@ -26,8 +25,7 @@ export async function getCategories() {
     const snapshot = await getDocs(colRef);
 
     if (snapshot.empty) {
-      await seedCategoriesToFirestore();
-      return defaultCategories;
+      return [];
     }
 
     const items = [];
@@ -42,13 +40,12 @@ export async function getCategories() {
     return items.sort((a, b) => (a.order || 0) - (b.order || 0));
   } catch (error) {
     console.warn('Firestore getCategories error:', error.message);
-    return defaultCategories;
+    return [];
   }
 }
 
 /**
  * Real-time subscription to categories in Firestore.
- * Falls back to default categories and seeds Firestore if empty.
  */
 export function subscribeToCategories(callback) {
   try {
@@ -57,11 +54,7 @@ export function subscribeToCategories(callback) {
       colRef,
       async (snapshot) => {
         if (snapshot.empty) {
-          callback(defaultCategories);
-          // Seed defaults in background so next time it is in Firestore
-          seedCategoriesToFirestore().catch((err) =>
-            console.warn('Could not auto-seed categories:', err)
-          );
+          callback([]);
           return;
         }
 
@@ -150,32 +143,5 @@ export async function deleteCategory(id) {
   } catch (error) {
     console.error('Error deleting category from Firestore:', error);
     throw error;
-  }
-}
-
-/**
- * Seed initial categories to Firestore if the collection is empty.
- */
-export async function seedCategoriesToFirestore() {
-  try {
-    const batch = writeBatch(db);
-    defaultCategories.forEach((cat, index) => {
-      const docRef = doc(db, CATEGORIES_COLLECTION, cat.id);
-      batch.set(docRef, {
-        name: cat.name,
-        category: cat.category,
-        image: cat.image,
-        badge: cat.badge || '',
-        order: index + 1,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-    });
-    await batch.commit();
-    console.log('Categories successfully seeded to Cloud Firestore');
-    return true;
-  } catch (error) {
-    console.warn('Error seeding categories to Firestore:', error);
-    return false;
   }
 }

@@ -6,7 +6,7 @@ import {
 import CategoryCard from '../components/CategoryCard';
 import ProductCard from '../components/ProductCard';
 import OfferBanner from '../components/OfferBanner';
-import { categories as defaultCategories, storeInfo } from '../data/products';
+import { storeInfo } from '../data/products';
 import { subscribeToReviews } from '../services/reviewService';
 
 export default function Home({ 
@@ -23,7 +23,7 @@ export default function Home({
   const allProducts = Array.isArray(customProducts) ? customProducts : (customProducts || []);
   const activeCategories = (Array.isArray(propCategories) && propCategories.length > 0)
     ? propCategories
-    : defaultCategories;
+    : [];
   const [activeTab, setActiveTab] = useState('all');
   const [heroSlide, setHeroSlide] = useState(0);
 

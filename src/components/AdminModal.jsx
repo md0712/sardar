@@ -5,6 +5,7 @@ import {
   ChevronRight, ArrowUpDown, IndianRupee, Layers, Tag 
 } from 'lucide-react';
 import ProductImagePicker from './ProductImagePicker';
+import ProductSpecificationsEditor from './ProductSpecificationsEditor';
 
 export default function AdminModal({ 
   isOpen, 
@@ -34,6 +35,7 @@ export default function AdminModal({
   // Add Product Form State
   const [newProductForm, setNewProductForm] = useState({
     name: '',
+    modelNumber: '',
     category: 'furniture',
     subcategory: 'sofas',
     price: '',
@@ -42,7 +44,9 @@ export default function AdminModal({
     badge: 'BEST SELLER',
     image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
     description: '',
-    featured: true
+    featured: true,
+    features: [],
+    additionalInformation: []
   });
 
   const [notification, setNotification] = useState('');
@@ -72,12 +76,51 @@ export default function AdminModal({
     return matchesSearch && matchesStatus;
   });
 
-  // Filtered Products
+  // Filtered Products (Search by name, title, id, or modelNumber)
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(productSearch.toLowerCase()) || p.id.toLowerCase().includes(productSearch.toLowerCase());
+    const q = productSearch.toLowerCase().trim();
+    const matchesSearch = q === '' ||
+      (p.name && p.name.toLowerCase().includes(q)) ||
+      (p.title && p.title.toLowerCase().includes(q)) ||
+      (p.id && p.id.toLowerCase().includes(q)) ||
+      (p.modelNumber && p.modelNumber.toLowerCase().includes(q));
     const matchesCat = productCatFilter === 'all' || p.category === productCatFilter;
     return matchesSearch && matchesCat;
   });
+
+  // Open Edit Product with normalized specifications
+  const handleOpenEditProduct = (prod) => {
+    let normalizedFeatures = [];
+    if (Array.isArray(prod.features)) {
+      normalizedFeatures = prod.features.map(f => {
+        if (typeof f === 'string') return { name: 'Specification', value: f };
+        if (f && typeof f === 'object') return { name: f.name || '', value: f.value || '' };
+        return null;
+      }).filter(Boolean);
+    } else if (prod.specifications && typeof prod.specifications === 'object') {
+      normalizedFeatures = Object.entries(prod.specifications).map(([name, value]) => ({
+        name,
+        value: String(value || '')
+      }));
+    }
+
+    let normalizedAdditionalInfo = [];
+    if (Array.isArray(prod.additionalInformation)) {
+      normalizedAdditionalInfo = prod.additionalInformation.map(a => {
+        if (typeof a === 'string') return { name: 'Info', value: a };
+        if (a && typeof a === 'object') return { name: a.name || '', value: a.value || '' };
+        return null;
+      }).filter(Boolean);
+    }
+
+    setEditingProduct({
+      ...prod,
+      name: prod.name || prod.title || '',
+      modelNumber: prod.modelNumber || '',
+      features: normalizedFeatures,
+      additionalInformation: normalizedAdditionalInfo
+    });
+  };
 
   // Handle Add Product Submit
   const handleAddProductSubmit = (e) => {
@@ -87,36 +130,51 @@ export default function AdminModal({
       return;
     }
 
+    // Clean features
+    const cleanFeatures = (newProductForm.features || [])
+      .filter(f => f && (f.name.trim() || f.value.trim()))
+      .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+
+    const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
+    if (invalidFeature) {
+      alert('Each specification row must have both a Feature Name and a Feature Value. Please complete or delete empty fields.');
+      return;
+    }
+
+    // Clean custom fields
+    const cleanAdditionalInfo = (newProductForm.additionalInformation || [])
+      .filter(a => a && (a.name.trim() || a.value.trim()))
+      .map(a => ({ name: a.name.trim(), value: a.value.trim() }));
+
+    const invalidCustom = cleanAdditionalInfo.find(a => !a.name || !a.value);
+    if (invalidCustom) {
+      alert('Each custom field must have both a Field Name and a Field Value. Please complete or delete empty fields.');
+      return;
+    }
+
     const priceNum = Number(newProductForm.price);
     const origPriceNum = newProductForm.originalPrice ? Number(newProductForm.originalPrice) : Math.round(priceNum * 1.28);
-    const discountNum = Math.round(((origPriceNum - priceNum) / origPriceNum) * 100);
+    const discountNum = Math.max(0, Math.round(((origPriceNum - priceNum) / (origPriceNum || 1)) * 100));
 
     const createdProduct = {
       id: `hk-${newProductForm.category.slice(0, 4)}-${Date.now().toString().slice(-4)}`,
-      name: newProductForm.name,
+      name: newProductForm.name.trim(),
+      title: newProductForm.name.trim(),
+      modelNumber: (newProductForm.modelNumber || '').trim(),
       category: newProductForm.category,
       subcategory: newProductForm.subcategory,
       price: priceNum,
+      sellingPrice: priceNum,
       originalPrice: origPriceNum,
+      originalMRP: origPriceNum,
       discount: discountNum,
-      badge: newProductForm.badge || null,
+      badge: newProductForm.badge ? newProductForm.badge.trim() : null,
       image: newProductForm.image,
+      imageUrl: newProductForm.image,
       gallery: [newProductForm.image],
       description: newProductForm.description || 'Showroom verified premium addition to Sardar Mart Furniture and Home Appliances catalog.',
-      features: [
-        'Highest grade materials inspected for longevity',
-        'Official manufacturer warranty coverage included',
-        'Free doorstep installation by verified technician'
-      ],
-      specifications: {
-        'Category Type': newProductForm.category.toUpperCase(),
-        'Warranty': '1 Year Full Support'
-      },
-      highlights: [
-        { label: 'Comfort & Utility', icon: 'award' },
-        { label: 'Durable Build', icon: 'shield' },
-        { label: 'Multiple Colours', icon: 'clock' }
-      ],
+      features: cleanFeatures,
+      additionalInformation: cleanAdditionalInfo,
       featured: newProductForm.featured
     };
 
@@ -125,6 +183,7 @@ export default function AdminModal({
     setActiveTab('products');
     setNewProductForm({
       name: '',
+      modelNumber: '',
       category: 'furniture',
       subcategory: 'sofas',
       price: '',
@@ -133,7 +192,9 @@ export default function AdminModal({
       badge: 'BEST SELLER',
       image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
       description: '',
-      featured: true
+      featured: true,
+      features: [],
+      additionalInformation: []
     });
   };
 
@@ -141,8 +202,50 @@ export default function AdminModal({
   const handleSaveProductEdit = (e) => {
     e.preventDefault();
     if (!editingProduct) return;
-    if (onEditProduct) onEditProduct(editingProduct.id, editingProduct);
-    triggerNotice(`Updated "${editingProduct.name}" successfully!`);
+
+    const cleanFeatures = (editingProduct.features || [])
+      .filter(f => f && (f.name.trim() || f.value.trim()))
+      .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+
+    const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
+    if (invalidFeature) {
+      alert('Each specification row must have both a Feature Name and a Feature Value. Please complete or delete empty fields.');
+      return;
+    }
+
+    const cleanAdditionalInfo = (editingProduct.additionalInformation || [])
+      .filter(a => a && (a.name.trim() || a.value.trim()))
+      .map(a => ({ name: a.name.trim(), value: a.value.trim() }));
+
+    const invalidCustom = cleanAdditionalInfo.find(a => !a.name || !a.value);
+    if (invalidCustom) {
+      alert('Each custom field must have both a Field Name and a Field Value. Please complete or delete empty fields.');
+      return;
+    }
+
+    const priceNum = Number(editingProduct.price) || 0;
+    const origPriceNum = editingProduct.originalPrice ? Number(editingProduct.originalPrice) : Math.round(priceNum * 1.25);
+    const discountNum = editingProduct.discount !== '' && editingProduct.discount !== undefined
+      ? parseInt(editingProduct.discount)
+      : Math.max(0, Math.round(((origPriceNum - priceNum) / (origPriceNum || 1)) * 100));
+
+    const updated = {
+      ...editingProduct,
+      name: editingProduct.name.trim(),
+      title: editingProduct.name.trim(),
+      modelNumber: (editingProduct.modelNumber || '').trim(),
+      price: priceNum,
+      sellingPrice: priceNum,
+      originalPrice: origPriceNum,
+      originalMRP: origPriceNum,
+      discount: discountNum,
+      badge: (editingProduct.badge || '').trim() || null,
+      features: cleanFeatures,
+      additionalInformation: cleanAdditionalInfo
+    };
+
+    if (onEditProduct) onEditProduct(editingProduct.id, updated);
+    triggerNotice(`Updated "${updated.name}" successfully!`);
     setEditingProduct(null);
   };
 
@@ -564,7 +667,14 @@ export default function AdminModal({
                         </td>
                         <td>
                           <strong>{product.name}</strong>
-                          <div className="sub-time">ID: {product.id} • {product.subcategory}</div>
+                          <div className="sub-time">
+                            ID: {product.id} • {product.subcategory}
+                            {product.modelNumber && (
+                              <span style={{ marginLeft: '6px', color: '#854d0e', fontWeight: 700 }}>
+                                • Model: {product.modelNumber}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td>
                           <span className="cat-pill-tag">
@@ -601,7 +711,7 @@ export default function AdminModal({
                           <div className="action-buttons-cell">
                             <button 
                               className="btn-action-icon btn-edit"
-                              onClick={() => setEditingProduct({ ...product })}
+                              onClick={() => handleOpenEditProduct(product)}
                               title="Edit Product Price, Title &amp; Details"
                             >
                               <Edit3 size={15} />
@@ -642,14 +752,25 @@ export default function AdminModal({
                     <button onClick={() => setEditingProduct(null)}><X size={18} /></button>
                   </div>
                   <form onSubmit={handleSaveProductEdit} className="admin-edit-form">
-                    <div className="form-group">
-                      <label>Product Title *</label>
-                      <input 
-                        type="text" 
-                        value={editingProduct.name} 
-                        onChange={(e) => setEditingProduct(prev => ({ ...prev, name: e.target.value }))}
-                        required
-                      />
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label>Product Title *</label>
+                        <input 
+                          type="text" 
+                          value={editingProduct.name} 
+                          onChange={(e) => setEditingProduct(prev => ({ ...prev, name: e.target.value }))}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Model Number <span style={{ fontWeight: 400, color: '#64748b' }}>(Optional)</span></label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Samsung RT28C3453S8 or FUR-3S-001"
+                          value={editingProduct.modelNumber || ''} 
+                          onChange={(e) => setEditingProduct(prev => ({ ...prev, modelNumber: e.target.value }))}
+                        />
+                      </div>
                     </div>
 
                     <div className="form-grid-2">
@@ -734,6 +855,17 @@ export default function AdminModal({
                       />
                     </div>
 
+                    {/* Dynamic Specifications and Custom Fields */}
+                    <div style={{ marginTop: '14px', marginBottom: '14px' }}>
+                      <ProductSpecificationsEditor
+                        features={editingProduct.features || []}
+                        onFeaturesChange={(updated) => setEditingProduct(prev => ({ ...prev, features: updated }))}
+                        additionalInformation={editingProduct.additionalInformation || []}
+                        onAdditionalInfoChange={(updated) => setEditingProduct(prev => ({ ...prev, additionalInformation: updated }))}
+                        category={editingProduct.category}
+                      />
+                    </div>
+
                     <div className="form-checkbox-row">
                       <label>
                         <input 
@@ -777,6 +909,18 @@ export default function AdminModal({
                   </div>
 
                   <div className="form-group">
+                    <label>Model Number <span style={{ fontWeight: 400, color: '#64748b' }}>(Optional)</span></label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Samsung RT28C3453S8 or FUR-3S-001" 
+                      value={newProductForm.modelNumber}
+                      onChange={(e) => setNewProductForm(prev => ({ ...prev, modelNumber: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-group">
                     <label>Department Category *</label>
                     <select 
                       value={newProductForm.category}
@@ -787,9 +931,19 @@ export default function AdminModal({
                       <option value="appliances">Home Appliances</option>
                     </select>
                   </div>
+
+                  <div className="form-group">
+                    <label>Promotional Badge</label>
+                    <input 
+                      type="text"
+                      placeholder="e.g. BEST SELLER or HOT DEAL"
+                      value={newProductForm.badge}
+                      onChange={(e) => setNewProductForm(prev => ({ ...prev, badge: e.target.value }))}
+                    />
+                  </div>
                 </div>
 
-                <div className="form-grid-3">
+                <div className="form-grid-2">
                   <div className="form-group">
                     <label>Selling Price (₹) *</label>
                     <input 
@@ -809,19 +963,6 @@ export default function AdminModal({
                       onChange={(e) => setNewProductForm(prev => ({ ...prev, originalPrice: e.target.value }))}
                     />
                   </div>
-                  <div className="form-group">
-                    <label>Badge</label>
-                    <select 
-                      value={newProductForm.badge}
-                      onChange={(e) => setNewProductForm(prev => ({ ...prev, badge: e.target.value }))}
-                    >
-                      <option value="">None</option>
-                      <option value="BEST SELLER">BEST SELLER</option>
-                      <option value="NEW ARRIVAL">NEW ARRIVAL</option>
-                      <option value="OFFER">OFFER</option>
-                      <option value="NEW">NEW</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div className="form-group">
@@ -840,6 +981,17 @@ export default function AdminModal({
                     placeholder="Describe comfort, materials, finish, and design specifications..."
                     value={newProductForm.description}
                     onChange={(e) => setNewProductForm(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+
+                {/* Dynamic Specifications and Custom Fields */}
+                <div style={{ marginTop: '14px', marginBottom: '14px' }}>
+                  <ProductSpecificationsEditor
+                    features={newProductForm.features || []}
+                    onFeaturesChange={(updated) => setNewProductForm(prev => ({ ...prev, features: updated }))}
+                    additionalInformation={newProductForm.additionalInformation || []}
+                    onAdditionalInfoChange={(updated) => setNewProductForm(prev => ({ ...prev, additionalInformation: updated }))}
+                    category={newProductForm.category}
                   />
                 </div>
 

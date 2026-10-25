@@ -263,10 +263,20 @@ export default function ProductCard({
     category === 'appliances' ? 'Home Appliances' :
     category.charAt(0).toUpperCase() + category.slice(1);
 
+  // Helper to extract clean text from string or { name, value } feature
+  const resolveFeatureText = (feat, fallback) => {
+    if (!feat) return fallback;
+    if (typeof feat === 'string') return feat;
+    if (typeof feat === 'object' && feat.name) {
+      return feat.value ? `${feat.name}: ${feat.value}` : feat.name;
+    }
+    return fallback;
+  };
+
   // Derive 3 highlight chips if not explicitly defined
   const displayHighlights = highlights || [
-    { label: specifications['Seating Capacity'] || specifications['Screen Size'] || specifications['Capacity'] || features[0] || 'Verified Quality', icon: 'award' },
-    { label: specifications['Primary Material'] || specifications['Display Technology'] || features[1] || 'Durable Build', icon: 'shield' },
+    { label: specifications['Seating Capacity'] || specifications['Screen Size'] || specifications['Capacity'] || resolveFeatureText(features[0], 'Verified Quality'), icon: 'award' },
+    { label: specifications['Primary Material'] || specifications['Display Technology'] || resolveFeatureText(features[1], 'Durable Build'), icon: 'shield' },
     { label: 'Multiple Colours', icon: 'clock' }
   ].slice(0, 3);
 
