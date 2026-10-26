@@ -565,8 +565,8 @@ export default function Home({
 
                   return (
                     <div key={rev.id} className="testimonial-card">
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <div className="t-stars" style={{ margin: 0 }}>
+                      <div className="t-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                        <div className="t-stars" style={{ margin: 0, display: 'flex', gap: '3px', alignItems: 'center', flexShrink: 0 }}>
                           {[...Array(ratingNum)].map((_, i) => (
                             <Star key={i} size={16} fill="#f59e0b" color="#f59e0b" />
                           ))}
@@ -581,7 +581,9 @@ export default function Home({
                           fontSize: '0.72rem',
                           fontWeight: 700,
                           padding: '3px 8px',
-                          borderRadius: '12px'
+                          borderRadius: '12px',
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap'
                         }}>
                           <ShieldCheck size={12} /> Verified Customer
                         </span>
@@ -597,10 +599,10 @@ export default function Home({
                         "{rev.message || rev.feedback || <>Great shopping experience with <strong>Sardar Mart</strong> Furniture and Home Appliances.</>}"
                       </p>
 
-                      <div className="t-user-info" style={{ marginTop: 'auto', paddingTop: '14px', borderTop: '1px solid #f1f5f9' }}>
+                      <div className="t-user-info" style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                         <div style={{
-                          width: '42px',
-                          height: '42px',
+                          width: '40px',
+                          height: '40px',
                           borderRadius: '50%',
                           background: '#fef3c7',
                           color: '#b45309',
@@ -608,17 +610,17 @@ export default function Home({
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontWeight: 800,
-                          fontSize: '0.92rem',
+                          fontSize: '0.9rem',
                           border: '2px solid #ecd8cb',
                           flexShrink: 0
                         }}>
                           {initials}
                         </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <h4 className="t-name" style={{ margin: 0, fontSize: '0.95rem', color: '#0f172a', fontWeight: 700 }}>
+                        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                          <h4 className="t-name" style={{ margin: 0, fontSize: '0.92rem', color: '#0f172a', fontWeight: 700, wordBreak: 'break-word' }}>
                             {rev.name || 'Valued Customer'}
                           </h4>
-                          <span className="t-loc" style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                          <span className="t-loc" style={{ fontSize: '0.74rem', color: '#64748b', display: 'block', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'normal', lineHeight: 1.35, marginTop: '2px' }}>
                             {cleanBranch || 'Chennai'} • {rev.date || 'Recent'}
                           </span>
                         </div>
@@ -629,13 +631,15 @@ export default function Home({
               </div>
 
               {/* Bottom Callout: Write a Review on Contact Page */}
-              <div style={{ textAlign: 'center', marginTop: '36px' }}>
+              <div style={{ textAlign: 'center', marginTop: '30px', padding: '0 8px' }}>
                 <button
                   type="button"
+                  className="write-review-btn"
                   onClick={() => onNavigate && onNavigate('contact')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '8px',
                     padding: '12px 24px',
                     borderRadius: '50px',
@@ -646,7 +650,11 @@ export default function Home({
                     fontSize: '0.88rem',
                     cursor: 'pointer',
                     boxShadow: '0 2px 8px rgba(180, 83, 9, 0.08)',
-                    transition: 'all 0.2s ease'
+                    transition: 'all 0.2s ease',
+                    maxWidth: '100%',
+                    boxSizing: 'border-box',
+                    textAlign: 'center',
+                    lineHeight: 1.35
                   }}
                   onMouseOver={(e) => {
                     e.currentTarget.style.background = '#b45309';
@@ -657,9 +665,9 @@ export default function Home({
                     e.currentTarget.style.color = '#b45309';
                   }}
                 >
-                  <Star size={16} fill="#f59e0b" color="#f59e0b" />
-                  Have you shopped with us? Share your review on our Contact Page
-                  <ArrowRight size={15} />
+                  <Star size={16} fill="#f59e0b" color="#f59e0b" style={{ flexShrink: 0 }} />
+                  <span>Have you shopped with us? Share your review on our Contact Page</span>
+                  <ArrowRight size={15} style={{ flexShrink: 0 }} />
                 </button>
               </div>
             </>
@@ -1110,11 +1118,15 @@ export default function Home({
           background: #fbf7f2;
           border-top: 1px solid var(--color-border);
           border-bottom: 1px solid var(--color-border);
+          width: 100%;
+          box-sizing: border-box;
         }
         .testimonials-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 24px;
+          width: 100%;
+          box-sizing: border-box;
         }
         .testimonial-card {
           background: #ffffff;
@@ -1124,6 +1136,9 @@ export default function Home({
           box-shadow: var(--shadow-sm);
           display: flex;
           flex-direction: column;
+          min-width: 0;
+          box-sizing: border-box;
+          overflow: hidden;
         }
         .t-stars {
           display: flex;
@@ -1143,6 +1158,8 @@ export default function Home({
           margin-bottom: 16px;
           font-style: italic;
           flex: 1;
+          word-break: break-word;
+          overflow-wrap: break-word;
         }
         .t-product-bought {
           font-size: 0.78rem;
@@ -1151,11 +1168,14 @@ export default function Home({
           padding: 4px 10px;
           border-radius: 6px;
           margin-bottom: 16px;
+          word-break: break-word;
+          overflow-wrap: break-word;
         }
         .t-user-info {
           display: flex;
           align-items: center;
           gap: 12px;
+          min-width: 0;
         }
         .t-avatar {
           width: 44px;
@@ -1163,15 +1183,18 @@ export default function Home({
           border-radius: 50%;
           object-fit: cover;
           border: 2px solid #ecd8cb;
+          flex-shrink: 0;
         }
         .t-name {
           font-size: 0.95rem;
           font-weight: 700;
           color: var(--color-text-main);
+          word-break: break-word;
         }
         .t-loc {
           font-size: 0.76rem;
           color: var(--color-text-light);
+          word-break: break-word;
         }
 
         /* Showroom CTA */
@@ -1292,7 +1315,8 @@ export default function Home({
             gap: 16px;
           }
           .testimonials-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 18px !important;
           }
           .showroom-cta-box {
             grid-template-columns: 1fr;
@@ -1406,6 +1430,53 @@ export default function Home({
           .center-view-all-box .btn-primary {
             width: 100%;
           }
+
+          /* Testimonials Mobile Styling */
+          .testimonials-section {
+            padding: 34px 0 !important;
+            overflow-x: hidden !important;
+          }
+          .testimonials-grid {
+            grid-template-columns: minmax(0, 1fr) !important;
+            gap: 14px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 0 !important;
+          }
+          .testimonial-card {
+            padding: 16px 14px !important;
+            border-radius: 14px !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            box-sizing: border-box !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+          }
+          .testimonial-card .t-product-bought {
+            font-size: 0.74rem !important;
+            padding: 4px 8px !important;
+            margin-bottom: 10px !important;
+            line-height: 1.4 !important;
+          }
+          .testimonial-card .t-comment {
+            font-size: 0.84rem !important;
+            line-height: 1.48 !important;
+            margin-bottom: 12px !important;
+          }
+          .testimonial-card .t-loc {
+            white-space: normal !important;
+            word-break: break-word !important;
+            font-size: 0.72rem !important;
+            line-height: 1.35 !important;
+          }
+          .write-review-btn {
+            width: 100% !important;
+            padding: 11px 16px !important;
+            font-size: 0.82rem !important;
+            border-radius: 12px !important;
+            justify-content: center !important;
+          }
         }
 
         @media (max-width: 380px) {
@@ -1443,6 +1514,13 @@ export default function Home({
           }
           .cta-actions .btn-primary, .cta-actions .btn-whatsapp {
             width: 100%;
+          }
+
+          .testimonial-card {
+            padding: 14px 11px !important;
+          }
+          .testimonial-card .t-card-header {
+            gap: 6px !important;
           }
         }
       `}</style>

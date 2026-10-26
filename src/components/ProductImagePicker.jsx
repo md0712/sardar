@@ -6,7 +6,8 @@ export default function ProductImagePicker({
   value = '',
   onChange,
   label = 'Product Image',
-  required = false
+  required = false,
+  folder = 'products'
 }) {
   const [localPreview, setLocalPreview] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -31,7 +32,7 @@ export default function ProductImagePicker({
     setUploadStatus('Optimizing image...');
 
     try {
-      const result = await uploadProductImage(file, 'products');
+      const result = await uploadProductImage(file, folder);
       onChange && onChange(result.url);
       setUploadStatus(
         result.source === 'firebase_storage'

@@ -29,11 +29,10 @@ export default function ProductDetails({
     price,
     originalPrice,
     discount,
-    rating = 4.8,
-    reviewsCount = 84,
+    rating = product.rating || null,
+    reviewsCount = product.reviewsCount || product.reviews || 0,
     badge,
     image,
-    gallery = [image],
     description,
     features = [],
     specifications = {},
@@ -41,7 +40,23 @@ export default function ProductDetails({
     additionalInformation = []
   } = product;
 
-  const [activeImage, setActiveImage] = useState(gallery[0] || image);
+  // Extract all available gallery images added by user / catalog
+  const primaryImg = product.image || product.imageUrl || '';
+  const rawList = Array.isArray(product.gallery) && product.gallery.length > 0
+    ? product.gallery
+    : (Array.isArray(product.images) && product.images.length > 0
+        ? product.images
+        : [primaryImg]);
+  
+  const allGalleryImages = Array.from(new Set([primaryImg, ...rawList].filter(Boolean)));
+  const gallery = allGalleryImages.length > 0 ? allGalleryImages : [primaryImg].filter(Boolean);
+
+  const [activeImage, setActiveImage] = useState(gallery[0] || primaryImg);
+
+  React.useEffect(() => {
+    setActiveImage(gallery[0] || primaryImg);
+  }, [product?.id, primaryImg]);
+
   const [localAddedQty, setLocalAddedQty] = useState(0);
   const [pincode, setPincode] = useState('');
   const [deliveryStatus, setDeliveryStatus] = useState(null);
@@ -136,10 +151,42 @@ export default function ProductDetails({
     }
   };
 
-  // Related products from same category
-  const relatedProducts = Array.isArray(products)
-    ? products.filter(p => p && p.category === category && p.id !== id).slice(0, 3)
-    : [];
+  // Check if current item is a refrigerator or belongs to appliances category
+  const isRefrigerator = 
+    (category && (category.toLowerCase() === 'refrigerator' || category.toLowerCase() === 'appliances' || category.toLowerCase() === 'home-appliances')) ||
+    (product.subcategory && (product.subcategory.toLowerCase().includes('refrig') || product.subcategory.toLowerCase().includes('fridge'))) ||
+    (name && (name.toLowerCase().includes('refrigerator') || name.toLowerCase().includes('fridge')));
+
+  // Related products: when viewing refrigerator, show all products related to refrigerator category; if no product, do not display anything
+  const relatedProducts = React.useMemo(() => {
+    if (!Array.isArray(products) || products.length === 0) return [];
+
+    if (isRefrigerator) {
+      return products.filter((p) => {
+        if (!p || p.id === id) return false;
+        const pSub = (p.subcategory || '').toLowerCase();
+        const pCat = (p.category || '').toLowerCase();
+        const pName = (p.name || p.title || '').toLowerCase();
+        return (
+          pSub === 'refrigerator' ||
+          pSub.includes('refrig') ||
+          pSub.includes('fridge') ||
+          pCat === 'refrigerator' ||
+          pName.includes('refrigerator') ||
+          pName.includes('fridge')
+        );
+      });
+    }
+
+    // For other categories, show matching subcategory / category items
+    return products.filter((p) => {
+      if (!p || p.id === id) return false;
+      if (product.subcategory && p.subcategory && p.subcategory.toLowerCase() === product.subcategory.toLowerCase()) {
+        return true;
+      }
+      return p.category && p.category.toLowerCase() === (category || '').toLowerCase();
+    }).slice(0, 4);
+  }, [products, id, category, product.subcategory, name, isRefrigerator]);
 
   return (
     <div className="product-details-page">
@@ -251,12 +298,18 @@ export default function ProductDetails({
 
             {/* Rating pill */}
             <div className="detail-rating-row">
-              <div className="star-rating-box">
-                <Star size={15} fill="#f59e0b" color="#f59e0b" />
-                <span>{rating}</span>
-              </div>
-              <span className="rating-count">({reviewsCount} customer reviews)</span>
-              <span className="dot-sep">•</span>
+              {rating ? (
+                <>
+                  <div className="star-rating-box">
+                    <Star size={15} fill="#f59e0b" color="#f59e0b" />
+                    <span>{rating}</span>
+                  </div>
+                  {reviewsCount > 0 && (
+                    <span className="rating-count">({reviewsCount} customer reviews)</span>
+                  )}
+                  <span className="dot-sep">•</span>
+                </>
+              ) : null}
               <span className="in-stock-tag">
                 <CheckCircle2 size={14} /> In Stock (Ready for Dispatch)
               </span>
@@ -468,10 +521,14 @@ export default function ProductDetails({
           </div>
         )}
 
-        {/* Related Products */}
-        {relatedProducts.length > 0 && (
+        {/* Related Products: If no products, do not display anything */}
+        {relatedProducts && relatedProducts.length > 0 ? (
           <div className="related-section">
-            <h3 className="section-title">Frequently Bought Together &amp; Similar Items</h3>
+            <h3 className="section-title">
+              {isRefrigerator 
+                ? "Related Products in Refrigerator Category" 
+                : "Frequently Bought Together & Similar Items"}
+            </h3>
             <div className="related-grid">
               {relatedProducts.map(prod => (
                 <ProductCard
@@ -485,7 +542,7 @@ export default function ProductDetails({
               ))}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       <style>{`

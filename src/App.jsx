@@ -19,6 +19,7 @@ import About from './pages/About';
 import Contact from './pages/Contact';
 import AdminPanel from './pages/AdminPanel';
 import Billing from './pages/Billing';
+import Wishlist from './pages/Wishlist';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { subscribeToStoreSettings, DEFAULT_STORE_CONFIG } from './services/settingsService';
@@ -380,6 +381,18 @@ function AppContent() {
     }
   };
 
+  const handleDeleteMultipleOrders = async (orderIds) => {
+    if (!orderIds || orderIds.length === 0) return;
+    const idSet = new Set(orderIds.map(String));
+    setOrders((prev) => prev.filter((o) => !idSet.has(String(o.id))));
+    showToast(`Deleted ${orderIds.length} orders from records`);
+    try {
+      await Promise.allSettled(orderIds.map((id) => deleteOrder(id)));
+    } catch (err) {
+      console.warn('Could not delete some orders from Firestore:', err);
+    }
+  };
+
   // Catalog Handlers (Admin Edit & Remove with Firestore persistence)
   const handleAddProductAdmin = async (newProduct) => {
     showToast(`Publishing "${newProduct.name}" to Firebase...`);
@@ -414,6 +427,18 @@ function AppContent() {
     }
   };
 
+  const handleDeleteMultipleProductsAdmin = async (productIds) => {
+    if (!productIds || productIds.length === 0) return;
+    const idSet = new Set(productIds.map(String));
+    setCatalogProducts((prev) => prev.filter((p) => !idSet.has(String(p.id))));
+    showToast(`Removed ${productIds.length} products from catalog`);
+    try {
+      await Promise.allSettled(productIds.map((id) => deleteProduct(id)));
+    } catch (err) {
+      console.warn('Could not delete some products from Firestore:', err);
+    }
+  };
+
   // Invoice opener
 
   const handleViewInvoice = (order) => {
@@ -441,12 +466,15 @@ function AppContent() {
           onAddProduct={handleAddProductAdmin}
           onEditProduct={handleEditProductAdmin}
           onDeleteProduct={handleDeleteProductAdmin}
+          onDeleteMultipleProducts={handleDeleteMultipleProductsAdmin}
           onUpdateOrderStatus={handleUpdateOrderStatus}
           onEditOrder={handleEditOrder}
           onDeleteOrder={handleDeleteOrder}
+          onDeleteMultipleOrders={handleDeleteMultipleOrders}
           onViewInvoice={handleViewInvoice}
           onPlaceOrder={handlePlaceOrder}
           storeSettings={storeSettings}
+          showToast={showToast}
           onBackToStore={() => {
             localStorage.removeItem('sef_current_page');
             setCurrentPage('home');
@@ -490,7 +518,7 @@ function AppContent() {
         cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)}
         wishlistCount={wishlist.length}
         onOpenCart={() => setIsCartOpen(true)}
-        onOpenWishlist={() => setIsWishlistOpen(true)}
+        onOpenWishlist={() => handleNavigate('wishlist')}
         onOpenAuth={handleOpenAuth}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -609,6 +637,19 @@ function AppContent() {
         {currentPage === 'contact' && (
           <Contact />
         )}
+
+        {currentPage === 'wishlist' && (
+          <Wishlist
+            wishlist={wishlist}
+            onToggleWishlist={handleToggleWishlist}
+            onRemoveWishlist={handleRemoveWishlist}
+            onAddToCart={handleAddToCart}
+            cart={cart}
+            onUpdateQuantity={handleUpdateQuantity}
+            onSelectProduct={handleSelectProduct}
+            onNavigate={handleNavigate}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -641,6 +682,7 @@ function AppContent() {
         onRemoveWishlist={handleRemoveWishlist}
         onAddToCart={handleAddToCart}
         onSelectProduct={handleSelectProduct}
+        onNavigate={handleNavigate}
       />
 
       {/* Admin Operations & CMS Modal (Edit & Remove Orders + Catalog) */}
@@ -652,9 +694,11 @@ function AppContent() {
         onAddProduct={handleAddProductAdmin}
         onEditProduct={handleEditProductAdmin}
         onDeleteProduct={handleDeleteProductAdmin}
+        onDeleteMultipleProducts={handleDeleteMultipleProductsAdmin}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         onEditOrder={handleEditOrder}
         onDeleteOrder={handleDeleteOrder}
+        onDeleteMultipleOrders={handleDeleteMultipleOrders}
         onViewInvoice={handleViewInvoice}
         categories={categories}
       />
@@ -684,7 +728,7 @@ function AppContent() {
         cartCount={cart.reduce((acc, i) => acc + i.quantity, 0)}
         wishlistCount={wishlist.length}
         onOpenCart={() => setIsCartOpen(true)}
-        onOpenWishlist={() => setIsWishlistOpen(true)}
+        onOpenWishlist={() => handleNavigate('wishlist')}
         onOpenCategories={() => handleNavigate('furniture')}
       />
 

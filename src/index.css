@@ -366,20 +366,13 @@ input, select, textarea {
     gap: 10px !important;
   }
 
-  .subcat-pills {
+  /* Catalog toolbar: switch subcategory pills to clean dropdown selector on mobile */
+  .desktop-subcat-pills,
+  .catalog-toolbar > .desktop-subcat-pills {
+    display: none !important;
+  }
+  .subcat-mobile-dropdown-wrap {
     display: flex !important;
-    overflow-x: auto !important;
-    flex-wrap: nowrap !important;
-    padding-bottom: 6px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-  .subcat-pills::-webkit-scrollbar {
-    display: none;
-  }
-  .subcat-pills .pill-btn {
-    white-space: nowrap;
-    flex-shrink: 0;
   }
 
   /* Drawers take 100% full width on mobile devices */
@@ -523,9 +516,27 @@ input, select, textarea {
   cursor: pointer;
   transition: all var(--transition-fast);
 }
+.desktop-subcat-pills {
+  display: flex;
+}
+
 .subcat-mobile-dropdown-wrap,
 .featured-mobile-dropdown-wrap {
   display: none;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.subcat-mobile-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+}
+
+.subcat-select-shell {
   position: relative;
   width: 100%;
 }
@@ -538,6 +549,7 @@ input, select, textarea {
   transform: translateY(-50%);
   color: var(--color-primary);
   pointer-events: none;
+  z-index: 2;
 }
 
 .subcat-mobile-select,
@@ -547,12 +559,13 @@ input, select, textarea {
   border-radius: var(--radius-md);
   border: 1.5px solid var(--color-border);
   background: #ffffff;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--color-text-main);
   outline: none;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-sizing: border-box;
   appearance: auto;
   -webkit-appearance: menulist;
 }
@@ -662,6 +675,43 @@ input, select, textarea {
     flex-direction: column;
     align-items: stretch;
     padding: 14px;
+    gap: 12px;
+  }
+  .desktop-subcat-pills,
+  .catalog-toolbar > .desktop-subcat-pills {
+    display: none !important;
+  }
+  .subcat-mobile-dropdown-wrap {
+    display: flex !important;
+  }
+  .toolbar-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+  .price-slider-control {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .range-input {
+    width: 140px;
+  }
+  .sort-select-wrapper {
+    width: 100%;
+  }
+  .sort-dropdown {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px 10px 34px;
+    border-radius: 10px;
   }
 }
 
@@ -676,20 +726,12 @@ input, select, textarea {
   .banner-sub {
     font-size: 0.82rem;
   }
-  .subcat-pills {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 6px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
+  .desktop-subcat-pills,
+  .catalog-toolbar > .desktop-subcat-pills {
+    display: none !important;
   }
-  .subcat-pills::-webkit-scrollbar {
-    display: none;
-  }
-  .pill-btn {
-    white-space: nowrap;
-    padding: 6px 12px;
-    font-size: 0.78rem;
+  .subcat-mobile-dropdown-wrap {
+    display: flex !important;
   }
   .toolbar-controls {
     flex-direction: column;

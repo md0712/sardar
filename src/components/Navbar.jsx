@@ -243,8 +243,8 @@ export default function Navbar({
 
             {/* Wishlist Button */}
             <button 
-              className="sardar-action-item"
-              onClick={onOpenWishlist}
+              className={`sardar-action-item ${currentPage === 'wishlist' ? 'active' : ''}`}
+              onClick={onOpenWishlist || (() => handleNavClick('wishlist'))}
               title="View Wishlist"
             >
               <div className="sardar-action-icon-box">
@@ -619,6 +619,14 @@ export default function Navbar({
                 onClick={() => handleNavClick('offers')}
               >
                 <span>🔥 Festival Offers (Up to 50% OFF)</span>
+                <ArrowRight size={15} />
+              </button>
+
+              <button 
+                className={`sardar-drawer-nav-item ${currentPage === 'wishlist' ? 'active' : ''}`}
+                onClick={() => handleNavClick('wishlist')}
+              >
+                <span>💖 My Saved Wishlist ({wishlistCount})</span>
                 <ArrowRight size={15} />
               </button>
 

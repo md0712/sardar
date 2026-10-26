@@ -154,19 +154,22 @@ export default function Electronics({
         <div className="catalog-toolbar">
           {/* Subcategory Dropdown for Mobile View */}
           <div className="subcat-mobile-dropdown-wrap">
-            <Layers size={15} className="subcat-dropdown-icon" />
-            <select
-              value={selectedSubcat}
-              onChange={(e) => setSelectedSubcat(e.target.value)}
-              className="subcat-mobile-select"
-              aria-label="Filter by electronics subcategory"
-            >
-              {subcategories.map(sub => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.label}
-                </option>
-              ))}
-            </select>
+            <span className="subcat-mobile-label">Category / Subcategory:</span>
+            <div className="subcat-select-shell">
+              <Layers size={16} className="subcat-dropdown-icon" />
+              <select
+                value={selectedSubcat}
+                onChange={(e) => setSelectedSubcat(e.target.value)}
+                className="subcat-mobile-select"
+                aria-label="Filter by electronics subcategory"
+              >
+                {subcategories.map(sub => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="subcat-pills desktop-subcat-pills">

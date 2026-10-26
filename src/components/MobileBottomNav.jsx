@@ -1,5 +1,4 @@
-import React from 'react';
-import { Home, Grid, Sparkles, Heart, ShoppingBag } from 'lucide-react';
+import { Home, Grid, Sparkles, ShoppingBag } from 'lucide-react';
 
 export default function MobileBottomNav({
   currentPage,
@@ -40,18 +39,6 @@ export default function MobileBottomNav({
           <span className="mob-offer-dot"></span>
         </div>
         <span>Offers</span>
-      </button>
-
-      <button 
-        className="mob-nav-btn"
-        onClick={onOpenWishlist}
-        aria-label="Wishlist"
-      >
-        <div className="icon-with-micro-tag">
-          <Heart size={20} />
-          {wishlistCount > 0 && <span className="mob-badge">{wishlistCount}</span>}
-        </div>
-        <span>Wishlist</span>
       </button>
 
       <button 
@@ -107,7 +94,7 @@ export default function MobileBottomNav({
           transition: all var(--transition-fast);
           flex: 1;
           min-width: 0;
-          max-width: 20%;
+          max-width: 25%;
           touch-action: manipulation;
           -webkit-tap-highlight-color: transparent;
         }

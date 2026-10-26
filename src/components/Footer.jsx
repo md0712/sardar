@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Phone, Mail, MapPin, Clock, MessageCircle, 
-  ShieldCheck, CreditCard, Truck, RefreshCw, Lock, Package,
-  ExternalLink, ChevronRight, X, CheckCircle2
+  ShieldCheck, CreditCard, Truck, RefreshCw, Lock, 
+  ExternalLink, ChevronRight, X, CheckCircle2, Sparkles
 } from 'lucide-react';
 import { FaInstagram, FaFacebookF, FaYoutube, FaWhatsapp } from 'react-icons/fa';
 
@@ -14,7 +14,7 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Safe fallback to storeSettings or localStorage or defaults
+  // Dynamic store configuration fallback
   const siteContent = (() => {
     if (storeSettings) return storeSettings;
     try {
@@ -25,69 +25,69 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
     }
   })();
 
-  const brandDesc = siteContent?.footerDescription || 'Your one-stop destination for premium stylish furniture and the latest smart home electronics. Transforming homes across Tamil Nadu and all over India with unmatched quality and value.';
+  const brandDesc = siteContent?.footerDescription || 'Chennai’s premier destination for handcrafted solid-wood furniture and the latest smart home appliances since 1998.';
   const instagram = siteContent?.instagramUrl || 'https://www.instagram.com/sardar_mart_ch_39?xtok=N2c2cW8xYmdzM3Fy';
   const facebook = siteContent?.facebookUrl || 'https://facebook.com';
   const youtube = siteContent?.youtubeUrl || 'https://youtube.com';
   const primaryPhone = siteContent?.phone || '+91 6383056338';
   const secondaryPhone = siteContent?.secondaryPhone || '+91 9344623632';
   const cleanWaNumber = (siteContent?.whatsappNumber || '916383056338').replace(/\D/g, '');
-  const storeAddress = siteContent?.address || 'No. 192, E.H Road, Cholan nagar, Vyasarpadi, Erukancheri, Chennai - 39.';
+  const storeAddress = siteContent?.address || 'No. 192, E.H Road, Vyasarpadi, Chennai - 39.';
   const storeEmail = siteContent?.email || 'sardarmart64@gmail.com';
-  const storeTiming = siteContent?.timing || 'Mon - Sun: 09:30 AM – 09:30 PM (All 7 Days Open)';
+  const storeTiming = siteContent?.timing || '09:30 AM – 09:30 PM (All 7 Days)';
 
   const policyDetails = {
     returns: {
       title: '7-Day Easy Replacement & Return Policy',
       badge: 'Zero-Hassle Protection',
-      description: 'We inspect every piece before dispatch. However, if any furniture or electronics arrives damaged or defective, we provide immediate door-step resolution.',
+      description: 'Every product is thoroughly inspected before dispatch. If any furniture or appliance arrives damaged, defective, or not matching specifications, we provide immediate door-step resolution.',
       points: [
-        'Free doorstep replacement or repair within 7 days of delivery for damaged or defective items.',
-        'Transit damage is 100% insured by Sardar Mart white-glove transport team.',
-        'Items must remain in original condition with warranty cards, manuals, and accessories intact.',
-        'Instant customer support verification via WhatsApp photo/video sharing.'
+        'Free doorstep replacement or repair within 7 days of delivery.',
+        '100% transit insurance covered by Sardar Mart delivery fleet.',
+        'Items must retain original warranty cards, manuals, and serial stickers.',
+        'Quick WhatsApp verification with photo or short video.'
       ]
     },
     warranty: {
       title: '100% Genuine Brand Warranty Registration',
       badge: 'Direct Manufacturer Guarantee',
-      description: 'Every single product sold at Sardar Mart is 100% authentic with genuine manufacturer warranty covering Tamil Nadu and all of India.',
+      description: 'Every appliance and electronics unit sold at Sardar Mart is 100% original with genuine manufacturer warranty honored across India.',
       points: [
-        'Televisions & Appliances: 1 to 5 Year official manufacturer warranty (Samsung, LG, Sony, Whirlpool, Godrej, Haier).',
-        'Luxury Wooden & Metal Furniture: 1 to 10 Year structural durability warranty on frames and joinery.',
-        'Authorized service technician visits arranged directly at your doorstep.',
-        'Tax invoice generated on delivery serves as your official warranty proof.'
+        'Appliances & Smart TVs: 1 to 5 Years official manufacturer warranty (Samsung, LG, Sony, Haier, Godrej).',
+        'Handcrafted Teak & Sheesham Furniture: Up to 10-year structural warranty against termite and joint defects.',
+        'Authorized brand technician doorstep service arranged for warranty claims.',
+        'Showroom tax invoice provided on delivery serves as official warranty proof.'
       ]
     },
     emi: {
-      title: '0% No-Cost EMI & Easy Financing Schemes',
+      title: '0% No-Cost EMI & Paperless Financing Schemes',
       badge: 'Affordable Luxury for Every Home',
-      description: 'Furnish your entire home or upgrade your smart electronics today with instant 0% EMI financing plans.',
+      description: 'Upgrade your living space today with flexible, zero-cost EMI plans from leading banks and finance partners.',
       points: [
-        'Bajaj Finserv, HDB Financial & TVS Credit paperless spot approvals in showroom.',
-        'Leading bank credit cards (HDFC, ICICI, SBI, Axis, Kotak) supported with 3, 6, 9 & 12 months no-cost EMI.',
-        'Zero down-payment options available on select living room, bedroom and appliance combos.',
-        'Fast transparent processing with no hidden administrative fees.'
+        'Instant paperless spot approvals with Bajaj Finserv, HDB Financial & TVS Credit.',
+        'Leading bank cards (HDFC, ICICI, SBI, Axis, Kotak) supported with 3, 6, 9 & 12-month 0% EMI.',
+        'Zero down-payment options on select furniture sets and electronics combos.',
+        'Transparent processing with zero hidden administration fees.'
       ]
     },
     shipping: {
       title: 'White-Glove Pan-India & Express Chennai Delivery',
       badge: 'Safe & Insured Doorstep Transit',
-      description: 'We treat your furniture and electronics with extreme care using specialized packaging and trained transport staff.',
+      description: 'We treat your furniture and electronics with extreme care using multi-layer protective packaging and trained transport staff.',
       points: [
-        'Express Chennai Delivery: Within 24 to 48 hours with complimentary assembly.',
+        'Express Chennai Delivery: Delivered within 24 to 48 hours with complimentary assembly.',
         'Tamil Nadu & South India: Dispatched via dedicated logistics network in 2-4 business days.',
-        'White-glove unboxing and room-of-choice placement available.',
-        'Doorstep handover and certified transit with genuine manufacturer warranties.'
+        'White-glove unboxing and room-of-choice placement included.',
+        'Certified handling with live delivery tracking.'
       ]
     },
     privacy: {
       title: 'Customer Data Privacy & Purchase Security',
       badge: '100% Secure & Protected',
-      description: 'Your personal information, phone numbers, and transaction details are strictly safeguarded with bank-grade 256-bit SSL encryption.',
+      description: 'Your personal data, phone numbers, and payment details are strictly safeguarded with 256-bit SSL encryption.',
       points: [
-        'No sale or sharing of phone numbers or emails with third-party telemarketers.',
-        'Payment details are processed through RBI-approved secure payment gateways (Razorpay, UPI, RuPay).',
+        'Strict zero-spam policy: we never sell or share customer contact data.',
+        'Transactions processed via RBI-approved secure payment gateways (Razorpay, UPI, RuPay).',
         'WhatsApp alerts sent only for active order confirmations, dispatch updates, and requested quotes.',
         'Full compliance with Indian IT Act and Digital Personal Data Protection standards.'
       ]
@@ -95,344 +95,244 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
   };
 
   return (
-    <footer className="site-footer">
-      {/* 1. VALUE & TRUST PILLARS STRIP */}
-      <div className="pre-footer-trust-bar">
+    <footer className="compact-site-footer">
+      {/* 1. SLIM VALUE & TRUST STRIP */}
+      <div className="compact-trust-strip">
         <div className="container">
-          <div className="trust-badges-grid">
-            <div className="trust-item">
-              <div className="trust-icon-circle">
-                <Truck size={22} />
-              </div>
-              <div className="trust-text">
-                <h4>Free Home Delivery</h4>
-                <p>Safe door-step transit & white-glove unboxing</p>
-              </div>
+          <div className="compact-trust-grid">
+            <div className="c-trust-item">
+              <Truck size={17} className="c-trust-icon" />
+              <span><strong>Free Delivery</strong> &amp; Assembly</span>
             </div>
-
-            <div className="trust-item">
-              <div className="trust-icon-circle">
-                <CreditCard size={22} />
-              </div>
-              <div className="trust-text">
-                <h4>Easy 0% EMI</h4>
-                <p>Bajaj Finserv & cards up to 24 months</p>
-              </div>
+            <div className="c-trust-item">
+              <CreditCard size={17} className="c-trust-icon" />
+              <span><strong>0% No-Cost EMI</strong> Up to 24 Mos</span>
             </div>
-
-            <div className="trust-item">
-              <div className="trust-icon-circle">
-                <ShieldCheck size={22} />
-              </div>
-              <div className="trust-text">
-                <h4>100% Genuine Warranty</h4>
-                <p>Direct manufacturer brand backing</p>
-              </div>
+            <div className="c-trust-item">
+              <ShieldCheck size={17} className="c-trust-icon" />
+              <span><strong>100% Genuine</strong> Brand Warranty</span>
             </div>
-
-            <div className="trust-item">
-              <div className="trust-icon-circle">
-                <RefreshCw size={22} />
-              </div>
-              <div className="trust-text">
-                <h4>7-Day Easy Returns</h4>
-                <p>Hassle-free replacement guarantee</p>
-              </div>
+            <div className="c-trust-item">
+              <RefreshCw size={17} className="c-trust-icon" />
+              <span><strong>7-Day Easy</strong> Replacement</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. MAIN FOOTER CONTENT COLUMNS */}
-      <div className="main-footer-body">
+      {/* 2. MAIN FOOTER CONTENT - COMPACT 4-COLUMN GRID */}
+      <div className="compact-footer-main">
         <div className="container">
-          <div className="footer-columns-grid">
+          <div className="compact-cols-grid">
             
-            {/* Col 1: Brand Info & Social Presence */}
-            <div className="footer-brand-col">
-              <div className="footer-logo" onClick={() => handleLink('home')}>
+            {/* Col 1: Brand & Heritage */}
+            <div className="c-col c-brand-col">
+              <div className="c-brand-header" onClick={() => handleLink('home')}>
                 <img 
                   src="/logo.png" 
-                  alt="Sardar Mart Furniture and Home Appliances" 
-                  className="footer-logo-img" 
+                  alt="Sardar Mart Logo" 
+                  className="c-logo-img" 
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <div className="footer-logo-text">
-                  <div className="footer-brand-title">
-                    Sardar <span className="gold-accent">Mart</span>
-                  </div>
-                  <div className="footer-brand-tagline">
-                    FURNITURE AND HOME APPLIANCES • CHENNAI
-                  </div>
+                <div>
+                  <h3 className="c-brand-title">
+                    SARDAR <span>MART</span>
+                  </h3>
+                  <span className="c-brand-sub">FURNITURE &amp; ELECTRONICS • CHENNAI</span>
                 </div>
               </div>
 
-              <div className="heritage-badge">
-                <span className="heritage-dot"></span>
-                <span>ESTD. 1998 • Trusted by 50,000+ Tamil Nadu Homes</span>
+              <p className="c-brand-desc">{brandDesc}</p>
+
+              <div className="c-meta-row">
+                <span className="c-heritage-pill">
+                  <Sparkles size={11} /> ESTD. 1998 • 50,000+ Happy Homes
+                </span>
+                <span className="c-hours-pill">
+                  <Clock size={11} /> {storeTiming}
+                </span>
               </div>
 
-              <p className="footer-brand-desc">
-                {brandDesc}
-              </p>
-
-              {/* Showroom Status Indicator */}
-              <div className="showroom-status-pill">
-                <span className="live-pulse-dot"></span>
-                <span className="showroom-status-text">Showroom Open Today • 9:30 AM – 9:30 PM</span>
-              </div>
-
-              {/* Social Media Links with Official Logos */}
-              <div className="footer-social-wrapper">
-                <span className="social-label">Follow Us:</span>
-                <div className="footer-social-links">
-                  {/* Official Instagram Button */}
-                  <a 
-                    href={instagram} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    aria-label="Follow Sardar Mart on Instagram" 
-                    title="Follow @sardar_mart_ch_39 on Instagram"
-                    className="footer-social-btn btn-instagram"
-                  >
-                    <FaInstagram size={19} />
-                  </a>
-
-                  {/* WhatsApp Direct */}
-                  <a 
-                    href={`https://wa.me/${cleanWaNumber}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    aria-label="Chat with Sardar Mart on WhatsApp" 
-                    title="Chat on WhatsApp: +91 6383056338"
-                    className="footer-social-btn btn-whatsapp"
-                  >
-                    <FaWhatsapp size={20} />
-                  </a>
-
-                  {/* Facebook */}
-                  <a 
-                    href={facebook} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    aria-label="Follow Sardar Mart on Facebook" 
-                    title="Facebook"
-                    className="footer-social-btn btn-facebook"
-                  >
-                    <FaFacebookF size={17} />
-                  </a>
-
-                  {/* YouTube */}
-                  <a 
-                    href={youtube} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    aria-label="Subscribe to Sardar Mart YouTube Channel" 
-                    title="YouTube Channel"
-                    className="footer-social-btn btn-youtube"
-                  >
-                    <FaYoutube size={19} />
-                  </a>
-                </div>
-
-                {/* Highlighted Instagram Verified Follow Pill */}
+              <div className="c-social-row">
+                <span className="c-social-text">Follow Us:</span>
                 <a 
                   href={instagram} 
                   target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="instagram-follow-pill"
+                  rel="noreferrer" 
+                  aria-label="Instagram"
+                  className="c-social-icon insta"
+                  title="@sardar_mart_ch_39"
                 >
-                  <FaInstagram size={15} className="pill-insta-icon" />
-                  <span>@sardar_mart_ch_39</span>
-                  <ExternalLink size={12} className="pill-ext-icon" />
+                  <FaInstagram size={15} />
+                </a>
+                <a 
+                  href={`https://wa.me/${cleanWaNumber}`} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  aria-label="WhatsApp"
+                  className="c-social-icon wa"
+                  title="WhatsApp"
+                >
+                  <FaWhatsapp size={16} />
+                </a>
+                <a 
+                  href={facebook} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  aria-label="Facebook"
+                  className="c-social-icon fb"
+                  title="Facebook"
+                >
+                  <FaFacebookF size={14} />
+                </a>
+                <a 
+                  href={youtube} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  aria-label="YouTube"
+                  className="c-social-icon yt"
+                  title="YouTube"
+                >
+                  <FaYoutube size={15} />
                 </a>
               </div>
             </div>
 
-            {/* Col 2: Curated Collections */}
-            <div className="footer-links-col">
-              <h3 className="footer-heading">
-                <span>Collections</span>
-              </h3>
-              <ul className="footer-nav-list">
+            {/* Col 2: Catalog Quick Links */}
+            <div className="c-col">
+              <h4 className="c-col-heading">Catalog &amp; Offers</h4>
+              <ul className="c-links-list">
                 <li>
-                  <button onClick={() => handleLink('furniture')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Living &amp; Bedroom Furniture</span>
+                  <button type="button" onClick={() => handleLink('furniture')}>
+                    Living &amp; Bedroom Furniture
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('electronics')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Smart 4K TVs &amp; Home Audio</span>
+                  <button type="button" onClick={() => handleLink('electronics')}>
+                    Smart 4K TVs &amp; Home Audio
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('appliances')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Refrigerators &amp; Washing Machines</span>
+                  <button type="button" onClick={() => handleLink('appliances')}>
+                    Refrigerators &amp; Washers
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('appliances')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Kitchen &amp; Home Appliances</span>
+                  <button type="button" onClick={() => handleLink('appliances')}>
+                    Kitchen &amp; Home Appliances
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('offers')} className="highlight-nav-item">
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Festival Mega Combos</span>
-                    <span className="hot-pill">SAVE 50%</span>
+                  <button type="button" onClick={() => handleLink('offers')} className="c-hot-link">
+                    Festival Offers <span className="c-mini-badge">50% OFF</span>
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('about')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Our 25-Year Heritage &amp; Story</span>
+                  <button type="button" onClick={() => handleLink('wishlist')} style={{ color: '#c85a17', fontWeight: 700 }}>
+                    ❤️ My Saved Wishlist
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('contact')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Showroom Experience Center</span>
+                  <button type="button" onClick={() => handleLink('about')}>
+                    Our 25-Year Showroom Story
                   </button>
                 </li>
               </ul>
             </div>
 
             {/* Col 3: Customer Care & Policies */}
-            <div className="footer-links-col">
-              <h3 className="footer-heading">
-                <span>Customer Care</span>
-              </h3>
-              <ul className="footer-nav-list">
+            <div className="c-col">
+              <h4 className="c-col-heading">Customer Care</h4>
+              <ul className="c-links-list">
                 <li>
-                  <button onClick={() => setActivePolicy('returns')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>7-Day Replacement Policy</span>
+                  <button type="button" onClick={() => setActivePolicy('returns')}>
+                    7-Day Replacement Policy
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => setActivePolicy('warranty')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Warranty &amp; Service Claims</span>
+                  <button type="button" onClick={() => setActivePolicy('warranty')}>
+                    100% Brand Warranty Claims
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => setActivePolicy('emi')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>0% No-Cost EMI Calculator</span>
+                  <button type="button" onClick={() => setActivePolicy('emi')}>
+                    0% No-Cost EMI Schemes
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => setActivePolicy('shipping')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Shipping &amp; Delivery Guide</span>
+                  <button type="button" onClick={() => setActivePolicy('shipping')}>
+                    White-Glove Delivery Guide
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => setActivePolicy('privacy')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Privacy Policy &amp; Security</span>
+                  <button type="button" onClick={() => setActivePolicy('privacy')}>
+                    Privacy Policy &amp; Security
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => handleLink('contact')}>
-                    <ChevronRight size={14} className="nav-arrow" />
-                    <span>Customer Grievance &amp; Help</span>
+                  <button type="button" onClick={() => handleLink('contact')}>
+                    Customer Grievance &amp; Feedback
                   </button>
                 </li>
               </ul>
             </div>
 
-            {/* Col 4: Showroom Helplines & Address */}
-            <div className="footer-contact-col">
-              <h3 className="footer-heading">
-                <span>Showroom Helpdesk</span>
-              </h3>
-              <div className="contact-cards-stack">
-                
-                {/* Helplines Pill */}
-                <div className="contact-card">
-                  <div className="contact-card-icon hotline-icon">
-                    <Phone size={16} />
+            {/* Col 4: Showroom Contact & Helpdesk */}
+            <div className="c-col c-contact-col">
+              <h4 className="c-col-heading">Showroom Helpdesk</h4>
+              <div className="c-contact-list">
+                <div className="c-contact-item">
+                  <Phone size={14} className="c-ci-icon" />
+                  <div>
+                    <span className="c-ci-label">Helplines:</span>
+                    <div className="c-ci-val">
+                      <a href={`tel:${primaryPhone.replace(/\s+/g, '')}`}>{primaryPhone}</a>
+                      <span className="sep">•</span>
+                      <a href={`tel:${secondaryPhone.replace(/\s+/g, '')}`}>{secondaryPhone}</a>
+                    </div>
                   </div>
-                  <div className="contact-card-info">
-                    <span className="card-label">Direct Showroom Helplines</span>
-                    <div className="helpline-numbers-row">
-                      <a href={`tel:${primaryPhone.replace(/\s+/g, '')}`} className="helpline-link">
-                        {primaryPhone}
-                      </a>
-                      <span className="num-sep">•</span>
-                      <a href={`tel:${secondaryPhone.replace(/\s+/g, '')}`} className="helpline-link">
-                        {secondaryPhone}
+                </div>
+
+                <div className="c-contact-item">
+                  <MessageCircle size={14} className="c-ci-icon" />
+                  <div>
+                    <span className="c-ci-label">WhatsApp Support:</span>
+                    <div className="c-ci-val">
+                      <a 
+                        href={`https://wa.me/${cleanWaNumber}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="c-wa-link"
+                      >
+                        +{cleanWaNumber} <span className="c-instant-tag">Instant Reply</span>
                       </a>
                     </div>
                   </div>
                 </div>
 
-                {/* WhatsApp Support Pill */}
-                <div className="contact-card">
-                  <div className="contact-card-icon wa-icon">
-                    <MessageCircle size={16} />
+                <div className="c-contact-item">
+                  <Mail size={14} className="c-ci-icon" />
+                  <div>
+                    <span className="c-ci-label">Email:</span>
+                    <a href={`mailto:${storeEmail}`} className="c-ci-val email">{storeEmail}</a>
                   </div>
-                  <div className="contact-card-info">
-                    <span className="card-label">WhatsApp Direct Assistance</span>
+                </div>
+
+                <div className="c-contact-item">
+                  <MapPin size={14} className="c-ci-icon" />
+                  <div>
+                    <span className="c-ci-label">Flagship Store:</span>
+                    <span className="c-ci-val address">{storeAddress}</span>
                     <a 
-                      href={`https://wa.me/${cleanWaNumber}`} 
+                      href="https://maps.google.com/?q=No.+192,+E.H+Road,+Cholan+Nagar,+Vyasarpadi,+Erukancheri,+Chennai+-+600039" 
                       target="_blank" 
                       rel="noreferrer" 
-                      className="wa-action-link"
+                      className="c-directions-link"
                     >
-                      +{cleanWaNumber} <span className="instant-badge">Instant Reply</span>
+                      Google Maps Directions <ExternalLink size={10} />
                     </a>
                   </div>
                 </div>
-
-                {/* Email Pill */}
-                <div className="contact-card">
-                  <div className="contact-card-icon email-icon">
-                    <Mail size={16} />
-                  </div>
-                  <div className="contact-card-info">
-                    <span className="card-label">Support Email</span>
-                    <a href={`mailto:${storeEmail}`} className="email-link">
-                      {storeEmail}
-                    </a>
-                  </div>
-                </div>
-
-                {/* Address Pill */}
-                <div className="contact-card address-card">
-                  <div className="contact-card-icon pin-icon">
-                    <MapPin size={16} />
-                  </div>
-                  <div className="contact-card-info">
-                    <span className="card-label">Flagship Showroom Address</span>
-                    <p className="showroom-address-text">{storeAddress}</p>
-                    <a 
-                      href="https://maps.google.com/?q=Sardar+Mart+Furniture+and+Home+Appliances+Vyasarpadi+Chennai" 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="maps-direction-btn"
-                    >
-                      <MapPin size={12} />
-                      <span>Get Directions (Google Maps)</span>
-                    </a>
-                  </div>
-                </div>
-
-                {/* Hours */}
-                <div className="contact-card hours-card">
-                  <div className="contact-card-icon clock-icon">
-                    <Clock size={16} />
-                  </div>
-                  <div className="contact-card-info">
-                    <span className="card-label">Showroom Hours</span>
-                    <span className="hours-text">{storeTiming}</span>
-                  </div>
-                </div>
-
               </div>
             </div>
 
@@ -440,72 +340,72 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
         </div>
       </div>
 
-      {/* 3. BOTTOM COPYRIGHT & TRUST CERTIFICATIONS BAR */}
-      <div className="footer-bottom-bar">
-        <div className="container bottom-bar-inner">
-          
-          {/* Left: Copyright & Legal Entity */}
-          <div className="copyright-group">
-            <p className="copyright-text">
-              © {new Date().getFullYear()} <strong>Sardar Mart</strong> Furniture and Home Appliances. All rights reserved.
-            </p>
-            <span className="powered-by-divider">•</span>
-            <span className="gstin-badge">GSTIN: 33DVKPR2334L1Z9</span>
-            <span className="powered-by-divider">•</span>
-            <p className="powered-by-text">
-              Engineered by{' '}
-              <a 
-                href="https://dmdigitallab.netlify.app" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="powered-by-link"
+      {/* 3. COMPACT BOTTOM BAR WITH STAFF PORTAL ACCESS */}
+      <div className="compact-footer-bottom">
+        <div className="container">
+          <div className="c-bottom-inner">
+            
+            {/* Copyright & Legal */}
+            <div className="c-bottom-legal">
+              <span>© {new Date().getFullYear()} <strong>Sardar Mart</strong> Furniture and Home Appliances.</span>
+              <span className="c-b-dot">•</span>
+              <span className="c-gstin">GSTIN: 33DVKPR2334L1Z9</span>
+              <span className="c-b-dot">•</span>
+              <span>
+                Engineered by{' '}
+                <a 
+                  href="https://dmdigitallab.netlify.app" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="c-credit-link"
+                >
+                  DM Digital Labs
+                </a>
+              </span>
+            </div>
+
+            {/* Payment Chips & Staff Portal Button */}
+            <div className="c-bottom-actions">
+              <div className="c-payment-chips">
+                <span className="c-chip">UPI</span>
+                <span className="c-chip">RuPay</span>
+                <span className="c-chip">Visa / MC</span>
+                <span className="c-chip gold">0% EMI</span>
+                <span className="c-chip">Cash on Delivery</span>
+              </div>
+
+              {/* Direct Access to Staff Portal / Admin Page */}
+              <button 
+                type="button"
+                onClick={onOpenAdmin} 
+                className="c-staff-portal-btn"
+                title="Authorized Staff & Administrator Access"
               >
-                DM Digital Labs
-              </a>
-            </p>
-          </div>
-
-          {/* Right: Payment Badges & Staff Portal Link */}
-          <div className="bottom-bar-right-group">
-            <div className="payment-modes-strip">
-              <span className="payment-tag-title">Accepted Modes:</span>
-              <div className="payment-badges-list">
-                <span className="pay-chip">UPI / GPay / PhonePe</span>
-                <span className="pay-chip">Visa / Mastercard</span>
-                <span className="pay-chip">RuPay</span>
-                <span className="pay-chip emi-chip">0% No-Cost EMI</span>
-                <span className="pay-chip">Cash on Delivery</span>
-              </div>
+                <Lock size={12} />
+                <span>Staff Portal</span>
+              </button>
             </div>
 
-            <button 
-              onClick={onOpenAdmin} 
-              className="staff-portal-btn"
-              title="Authorized Staff & CMS Access (Restricted Portal)"
-            >
-              <Lock size={12} />
-              <span>Staff Portal</span>
-            </button>
           </div>
-
         </div>
       </div>
 
-      {/* 4. INTERACTIVE POLICY TRANSPARENCY MODAL */}
+      {/* 4. COMPACT INTERACTIVE POLICY MODAL */}
       {activePolicy && (
         <div className="policy-modal-backdrop" onClick={() => setActivePolicy(null)}>
           <div className="policy-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="policy-modal-header">
-              <div className="policy-header-title">
+              <div>
                 <span className="policy-pill-badge">{policyDetails[activePolicy].badge}</span>
                 <h3>{policyDetails[activePolicy].title}</h3>
               </div>
               <button 
+                type="button"
                 onClick={() => setActivePolicy(null)} 
                 className="policy-modal-close"
                 aria-label="Close modal"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
@@ -516,7 +416,7 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
               <ul className="policy-points-list">
                 {policyDetails[activePolicy].points.map((pt, idx) => (
                   <li key={idx}>
-                    <CheckCircle2 size={16} className="point-icon" />
+                    <CheckCircle2 size={15} className="point-icon" />
                     <span>{pt}</span>
                   </li>
                 ))}
@@ -530,727 +430,471 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
                 rel="noreferrer" 
                 className="policy-wa-btn"
               >
-                <FaWhatsapp size={16} />
-                <span>Chat with Showroom Support on WhatsApp</span>
+                <FaWhatsapp size={15} />
+                <span>Chat on WhatsApp</span>
               </a>
-              <button onClick={() => setActivePolicy(null)} className="policy-close-action-btn">
-                Done
+              <button type="button" onClick={() => setActivePolicy(null)} className="policy-close-action-btn">
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* COMPREHENSIVE STYLING */}
+      {/* COMPACT STYLES */}
       <style>{`
-        .site-footer {
-          background: #120905;
-          color: #d1bfb3;
+        .compact-site-footer {
+          background: #140a05;
+          color: #c9b8ab;
           font-family: var(--font-body, system-ui, sans-serif);
-          position: relative;
           border-top: 1px solid rgba(255, 255, 255, 0.08);
-          overflow: hidden;
-        }
-
-        /* Ambient Glow Effect */
-        .site-footer::before {
-          content: '';
-          position: absolute;
-          top: -120px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 800px;
-          height: 240px;
-          background: radial-gradient(ellipse at center, rgba(217, 119, 6, 0.12) 0%, rgba(217, 119, 6, 0) 70%);
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        /* 1. Value Bar */
-        .pre-footer-trust-bar {
-          background: #170c07;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          padding: 24px 0;
           position: relative;
-          z-index: 1;
-        }
-        .trust-badges-grid {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 20px;
-        }
-        .trust-item {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          padding: 12px 16px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          border-radius: 12px;
-          transition: all 0.25s ease;
-        }
-        .trust-item:hover {
-          background: rgba(255, 255, 255, 0.04);
-          border-color: rgba(217, 119, 6, 0.3);
-          transform: translateY(-2px);
-        }
-        .trust-icon-circle {
-          width: 44px;
-          height: 44px;
-          background: linear-gradient(135deg, rgba(217, 119, 6, 0.25) 0%, rgba(180, 83, 9, 0.1) 100%);
-          color: #fbbf24;
-          border: 1px solid rgba(245, 158, 11, 0.3);
-          border-radius: 10px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .trust-text h4 {
-          color: #ffffff;
-          font-size: 0.92rem;
-          font-weight: 700;
-          margin-bottom: 2px;
-        }
-        .trust-text p {
-          font-size: 0.76rem;
-          color: #a89487;
-          line-height: 1.35;
+          font-size: 0.84rem;
+          line-height: 1.45;
         }
 
-        /* 2. Main Footer */
-        .main-footer-body {
-          padding: 56px 0 46px;
-          position: relative;
-          z-index: 1;
+        /* 1. Value Strip */
+        .compact-trust-strip {
+          background: #1c0e08;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 10px 0;
         }
-        .footer-columns-grid {
-          display: grid;
-          grid-template-columns: 1.4fr 1.05fr 1.05fr 1.3fr;
-          gap: 44px;
-        }
-
-        /* Column 1: Brand */
-        .footer-brand-col {
+        .compact-trust-grid {
           display: flex;
-          flex-direction: column;
-        }
-        .footer-logo {
-          display: inline-flex;
+          justify-content: space-between;
           align-items: center;
-          gap: 14px;
-          cursor: pointer;
-          margin-bottom: 12px;
-          text-decoration: none;
+          gap: 12px;
+          flex-wrap: wrap;
         }
-        .footer-logo-img {
-          height: 46px;
-          width: auto;
-          max-width: 130px;
-          object-fit: contain;
-          border-radius: 8px;
-          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
-        }
-        .footer-logo-text {
-          display: flex;
-          flex-direction: column;
-        }
-        .footer-brand-title {
-          font-family: var(--font-heading, sans-serif);
-          font-size: 1.55rem;
-          font-weight: 800;
-          color: #ffffff;
-          line-height: 1.1;
-          letter-spacing: -0.02em;
-        }
-        .gold-accent {
-          color: #f59e0b;
-        }
-        .footer-brand-tagline {
-          font-size: 0.62rem;
-          font-weight: 500;
-          letter-spacing: 1.8px;
-          color: #a89487;
-          margin-top: 2px;
-        }
-        .heritage-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 0.72rem;
-          color: #fbbf24;
-          background: rgba(251, 191, 36, 0.08);
-          border: 1px solid rgba(251, 191, 36, 0.2);
-          border-radius: 9999px;
-          padding: 3px 10px;
-          margin-bottom: 14px;
-          width: fit-content;
-        }
-        .heritage-dot {
-          width: 5px;
-          height: 5px;
-          border-radius: 50%;
-          background: #fbbf24;
-        }
-        .footer-brand-desc {
-          font-size: 0.86rem;
-          line-height: 1.6;
-          color: #b3a195;
-          margin-bottom: 16px;
-        }
-
-        /* Showroom Live Pulse */
-        .showroom-status-pill {
+        .c-trust-item {
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          background: rgba(34, 197, 94, 0.1);
-          border: 1px solid rgba(34, 197, 94, 0.25);
-          border-radius: 8px;
-          padding: 6px 12px;
-          margin-bottom: 22px;
-          width: fit-content;
+          color: #e8ded6;
+          font-size: 0.78rem;
         }
-        .live-pulse-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          background: #22c55e;
-          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
-          animation: statusPulse 2s infinite;
+        .c-trust-item strong {
+          color: #fcd34d;
+          font-weight: 700;
         }
-        @keyframes statusPulse {
-          0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
-          70% { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
-        }
-        .showroom-status-text {
-          font-size: 0.76rem;
-          color: #86efac;
-          font-weight: 600;
+        .c-trust-icon {
+          color: #f59e0b;
+          flex-shrink: 0;
         }
 
-        /* Social Media Section */
-        .footer-social-wrapper {
+        /* 2. Main Body */
+        .compact-footer-main {
+          padding: 34px 0 26px;
+        }
+        .compact-cols-grid {
+          display: grid;
+          grid-template-columns: 1.35fr 0.95fr 1fr 1.2fr;
+          gap: 28px;
+        }
+
+        /* Brand Column */
+        .c-brand-col {
           display: flex;
           flex-direction: column;
-          gap: 10px;
         }
-        .social-label {
-          font-size: 0.76rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-          color: #8c766a;
-        }
-        .footer-social-links {
+        .c-brand-header {
           display: flex;
           align-items: center;
           gap: 10px;
-          flex-wrap: wrap;
+          cursor: pointer;
+          margin-bottom: 8px;
         }
-        .footer-social-btn {
+        .c-logo-img {
           width: 38px;
           height: 38px;
-          border-radius: 10px;
+          object-fit: contain;
+          border-radius: 8px;
           background: rgba(255, 255, 255, 0.06);
-          color: #e2d5cb;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          transition: all 0.22s ease;
-          cursor: pointer;
-          position: relative;
+          padding: 2px;
         }
-        
-        /* Official Brand Colors on Hover */
-        .footer-social-btn.btn-instagram:hover {
-          background: radial-gradient(circle at 30% 107%, #fdf497 0%, #fdf497 5%, #fd5949 45%, #d6249f 60%, #285AEB 90%);
-          color: #ffffff;
-          border-color: transparent;
-          transform: translateY(-3px);
-          box-shadow: 0 6px 16px rgba(214, 36, 159, 0.45);
-        }
-        .footer-social-btn.btn-whatsapp:hover {
-          background: #25d366;
-          color: #ffffff;
-          border-color: #25d366;
-          transform: translateY(-3px);
-          box-shadow: 0 6px 16px rgba(37, 211, 102, 0.45);
-        }
-        .footer-social-btn.btn-facebook:hover {
-          background: #1877f2;
-          color: #ffffff;
-          border-color: #1877f2;
-          transform: translateY(-3px);
-          box-shadow: 0 6px 16px rgba(24, 119, 242, 0.45);
-        }
-        .footer-social-btn.btn-youtube:hover {
-          background: #ff0000;
-          color: #ffffff;
-          border-color: #ff0000;
-          transform: translateY(-3px);
-          box-shadow: 0 6px 16px rgba(255, 0, 0, 0.45);
-        }
-
-        /* Instagram Verified Follow Pill */
-        .instagram-follow-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          background: linear-gradient(135deg, rgba(214, 36, 159, 0.12) 0%, rgba(253, 89, 73, 0.12) 100%);
-          border: 1px solid rgba(214, 36, 159, 0.35);
-          color: #fbcfe8;
-          font-size: 0.78rem;
-          font-weight: 600;
-          padding: 6px 12px;
-          border-radius: 8px;
-          width: fit-content;
-          transition: all 0.2s ease;
-          margin-top: 4px;
-        }
-        .instagram-follow-pill:hover {
-          background: linear-gradient(135deg, rgba(214, 36, 159, 0.25) 0%, rgba(253, 89, 73, 0.25) 100%);
-          border-color: #f472b6;
-          color: #ffffff;
-          transform: translateX(2px);
-        }
-        .pill-insta-icon {
-          color: #f472b6;
-        }
-        .pill-ext-icon {
-          opacity: 0.7;
-        }
-
-        /* Headings */
-        .footer-heading {
-          color: #ffffff;
-          font-size: 1.05rem;
-          font-family: var(--font-heading, sans-serif);
-          margin-bottom: 20px;
-          position: relative;
-          padding-bottom: 10px;
-        }
-        .footer-heading::after {
-          content: '';
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 34px;
-          height: 2px;
-          background: #d97706;
-          border-radius: 2px;
-        }
-
-        /* Nav lists */
-        .footer-nav-list {
-          list-style: none;
-          display: flex;
-          flex-direction: column;
-          gap: 9px;
-          padding: 0;
-          margin: 0;
-        }
-        .footer-nav-list li button {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          color: #b7a497;
-          font-size: 0.88rem;
-          background: none;
-          border: none;
-          padding: 3px 0;
-          cursor: pointer;
-          text-align: left;
-          transition: all 0.2s ease;
-        }
-        .nav-arrow {
-          color: #785949;
-          transition: transform 0.2s ease, color 0.2s ease;
-          flex-shrink: 0;
-        }
-        .footer-nav-list li button:hover {
-          color: #ffffff;
-          padding-left: 4px;
-        }
-        .footer-nav-list li button:hover .nav-arrow {
-          color: #f59e0b;
-          transform: translateX(2px);
-        }
-
-        /* Highlighting Special Items */
-        .highlight-nav-item {
-          color: #f59e0b !important;
-          font-weight: 600;
-        }
-        .hot-pill {
-          background: #ef4444;
-          color: #ffffff;
-          font-size: 0.65rem;
+        .c-brand-title {
+          font-size: 1.15rem;
           font-weight: 800;
-          padding: 2px 6px;
-          border-radius: 4px;
+          color: #ffffff;
           letter-spacing: 0.5px;
-          margin-left: 6px;
+          margin: 0;
+          line-height: 1.1;
         }
-        .track-order-highlight {
-          background: rgba(245, 158, 11, 0.12) !important;
-          border: 1px solid rgba(245, 158, 11, 0.3) !important;
-          color: #fde68a !important;
-          padding: 6px 12px !important;
-          border-radius: 8px !important;
-          font-weight: 600;
-          margin-bottom: 4px;
-        }
-        .track-order-highlight:hover {
-          background: rgba(245, 158, 11, 0.22) !important;
-          border-color: #f59e0b !important;
-          color: #ffffff !important;
-        }
-        .track-box-icon {
+        .c-brand-title span {
           color: #f59e0b;
         }
-        .live-tag {
-          font-size: 0.62rem;
-          background: #22c55e;
-          color: #000;
-          font-weight: 800;
-          padding: 1px 5px;
-          border-radius: 3px;
-          margin-left: auto;
-        }
-
-        /* Column 4: Contact Showroom Cards */
-        .contact-cards-stack {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .contact-card {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          background: rgba(255, 255, 255, 0.025);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 10px;
-          padding: 10px 14px;
-          transition: border-color 0.2s ease, background 0.2s ease;
-        }
-        .contact-card:hover {
-          background: rgba(255, 255, 255, 0.045);
-          border-color: rgba(217, 119, 6, 0.35);
-        }
-        .contact-card-icon {
-          width: 32px;
-          height: 32px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
+        .c-brand-sub {
+          font-size: 0.65rem;
+          color: #9c887e;
+          font-weight: 700;
+          letter-spacing: 0.8px;
+          display: block;
           margin-top: 2px;
         }
-        .hotline-icon {
-          background: rgba(245, 158, 11, 0.15);
-          color: #f59e0b;
-        }
-        .wa-icon {
-          background: rgba(34, 197, 94, 0.15);
-          color: #22c55e;
-        }
-        .email-icon {
-          background: rgba(59, 130, 246, 0.15);
-          color: #60a5fa;
-        }
-        .pin-icon {
-          background: rgba(239, 68, 68, 0.15);
-          color: #f87171;
-        }
-        .clock-icon {
-          background: rgba(168, 85, 247, 0.15);
-          color: #c084fc;
-        }
-
-        .contact-card-info {
-          display: flex;
-          flex-direction: column;
-          flex: 1;
-        }
-        .card-label {
-          font-size: 0.68rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          color: #8c766a;
-          margin-bottom: 2px;
-        }
-        .helpline-numbers-row {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-        .helpline-link {
-          color: #ffffff;
-          font-size: 0.86rem;
-          font-weight: 700;
-          transition: color 0.2s ease;
-        }
-        .helpline-link:hover {
-          color: #fbbf24;
-          text-decoration: underline;
-        }
-        .num-sep {
-          color: #5c4335;
-          font-weight: bold;
-        }
-        .wa-action-link {
-          color: #86efac;
-          font-size: 0.86rem;
-          font-weight: 700;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: color 0.2s ease;
-        }
-        .wa-action-link:hover {
-          color: #bbf7d0;
-          text-decoration: underline;
-        }
-        .instant-badge {
-          background: rgba(34, 197, 94, 0.2);
-          color: #4ade80;
-          font-size: 0.65rem;
-          padding: 1px 6px;
-          border-radius: 4px;
-        }
-        .email-link {
-          color: #d1b8a7;
-          font-size: 0.84rem;
-          transition: color 0.2s ease;
-        }
-        .email-link:hover {
-          color: #ffffff;
-        }
-        .showroom-address-text {
+        .c-brand-desc {
           font-size: 0.8rem;
-          color: #bfaea2;
-          line-height: 1.4;
-          margin-bottom: 6px;
+          color: #a89487;
+          margin: 0 0 10px;
+          line-height: 1.45;
+          max-width: 320px;
         }
-        .maps-direction-btn {
-          display: inline-flex;
-          align-items: center;
+        .c-meta-row {
+          display: flex;
+          flex-wrap: wrap;
           gap: 6px;
-          font-size: 0.74rem;
-          font-weight: 700;
-          color: #f59e0b;
-          transition: color 0.2s ease;
-          width: fit-content;
+          margin-bottom: 12px;
         }
-        .maps-direction-btn:hover {
-          color: #fde047;
-          text-decoration: underline;
-        }
-        .hours-text {
-          font-size: 0.8rem;
-          color: #e2d5cb;
-        }
-
-        /* 3. Bottom Bar */
-        .footer-bottom-bar {
-          background: #0b0503;
-          padding: 20px 0;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
-          font-size: 0.8rem;
-          position: relative;
-          z-index: 1;
-        }
-        .bottom-bar-inner {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-        .copyright-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .copyright-text {
-          color: #8c766a;
-          margin: 0;
-        }
-        .powered-by-divider {
-          color: #453025;
-        }
-        .gstin-badge {
-          color: #a89487;
-          font-size: 0.74rem;
-          background: rgba(255, 255, 255, 0.04);
-          padding: 2px 6px;
-          border-radius: 4px;
-          border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-        .powered-by-text {
-          color: #a89487;
-          margin: 0;
-        }
-        .powered-by-link {
-          color: #f59e0b;
-          font-weight: 700;
-          text-decoration: none;
-          transition: color 0.2s ease;
-        }
-        .powered-by-link:hover {
-          color: #fde047;
-          text-decoration: underline;
-        }
-
-        .bottom-bar-right-group {
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          flex-wrap: wrap;
-        }
-        .payment-modes-strip {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .payment-tag-title {
-          color: #785949;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          font-weight: 700;
-          letter-spacing: 0.5px;
-        }
-        .payment-badges-list {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          flex-wrap: wrap;
-        }
-        .pay-chip {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          color: #d1bfb3;
-          padding: 3px 8px;
-          border-radius: 4px;
-          font-size: 0.7rem;
-          font-weight: 600;
-        }
-        .emi-chip {
-          border-color: rgba(245, 158, 11, 0.35);
-          color: #fbbf24;
-          background: rgba(245, 158, 11, 0.1);
-        }
-        .staff-portal-btn {
-          background: rgba(255, 255, 255, 0.05);
-          color: #a89487;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          padding: 4px 10px;
-          border-radius: 6px;
-          font-size: 0.72rem;
+        .c-heritage-pill, .c-hours-pill {
           display: inline-flex;
           align-items: center;
           gap: 5px;
-          cursor: pointer;
-          transition: all 0.2s ease;
+          font-size: 0.7rem;
+          font-weight: 600;
+          padding: 3px 8px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #d8c8bd;
         }
-        .staff-portal-btn:hover {
+        .c-heritage-pill {
           color: #fde68a;
-          border-color: rgba(253, 230, 138, 0.4);
-          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(245, 158, 11, 0.25);
+          background: rgba(245, 158, 11, 0.08);
         }
 
-        /* 4. Policy Modal */
+        /* Social Icons */
+        .c-social-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .c-social-text {
+          font-size: 0.72rem;
+          color: #9c887e;
+          font-weight: 600;
+          margin-right: 2px;
+        }
+        .c-social-icon {
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          color: #ffffff;
+          transition: all 0.2s ease;
+          text-decoration: none;
+        }
+        .c-social-icon:hover {
+          transform: translateY(-2px);
+        }
+        .c-social-icon.insta:hover {
+          background: #e1306c;
+          border-color: #e1306c;
+        }
+        .c-social-icon.wa:hover {
+          background: #25d366;
+          border-color: #25d366;
+        }
+        .c-social-icon.fb:hover {
+          background: #1877f2;
+          border-color: #1877f2;
+        }
+        .c-social-icon.yt:hover {
+          background: #ff0000;
+          border-color: #ff0000;
+        }
+
+        /* Nav Columns */
+        .c-col-heading {
+          font-size: 0.88rem;
+          font-weight: 700;
+          color: #ffffff;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          margin: 0 0 12px;
+          position: relative;
+          padding-bottom: 6px;
+          border-bottom: 1.5px solid rgba(245, 158, 11, 0.35);
+          display: inline-block;
+        }
+        .c-links-list {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+        }
+        .c-links-list li button {
+          background: none;
+          border: none;
+          color: #baa79a;
+          font-size: 0.8rem;
+          cursor: pointer;
+          padding: 0;
+          text-align: left;
+          transition: color 0.15s ease;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .c-links-list li button:hover {
+          color: #f59e0b;
+        }
+        .c-hot-link {
+          color: #fed7aa !important;
+          font-weight: 600;
+        }
+        .c-mini-badge {
+          font-size: 0.62rem;
+          font-weight: 800;
+          background: #dc2626;
+          color: #ffffff;
+          padding: 1px 5px;
+          border-radius: 4px;
+          letter-spacing: 0.3px;
+        }
+
+        /* Contact Column */
+        .c-contact-list {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .c-contact-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 9px;
+          font-size: 0.78rem;
+        }
+        .c-ci-icon {
+          color: #f59e0b;
+          margin-top: 2px;
+          flex-shrink: 0;
+        }
+        .c-ci-label {
+          display: block;
+          color: #8c786c;
+          font-size: 0.7rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.3px;
+        }
+        .c-ci-val {
+          color: #e2d5cb;
+          line-height: 1.35;
+        }
+        .c-ci-val a {
+          color: #ffffff;
+          text-decoration: none;
+          font-weight: 600;
+          transition: color 0.15s ease;
+        }
+        .c-ci-val a:hover {
+          color: #f59e0b;
+        }
+        .c-ci-val .sep {
+          margin: 0 4px;
+          color: #8c786c;
+        }
+        .c-wa-link {
+          color: #4ade80 !important;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .c-instant-tag {
+          font-size: 0.62rem;
+          background: rgba(34, 197, 94, 0.2);
+          color: #4ade80;
+          padding: 1px 5px;
+          border-radius: 4px;
+          font-weight: 700;
+        }
+        .c-ci-val.email {
+          color: #93c5fd;
+          word-break: break-all;
+        }
+        .c-ci-val.address {
+          display: block;
+          color: #d1bfb3;
+          font-size: 0.76rem;
+        }
+        .c-directions-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          color: #f59e0b !important;
+          font-size: 0.72rem;
+          font-weight: 600;
+          margin-top: 2px;
+        }
+
+        /* 3. Bottom Bar */
+        .compact-footer-bottom {
+          background: #0d0603;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          padding: 12px 0;
+        }
+        .c-bottom-inner {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+          font-size: 0.74rem;
+          color: #8c786c;
+        }
+        .c-bottom-legal {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .c-bottom-legal strong {
+          color: #ffffff;
+        }
+        .c-b-dot {
+          color: #523f34;
+        }
+        .c-gstin {
+          color: #a89487;
+          font-weight: 600;
+        }
+        .c-credit-link {
+          color: #f59e0b;
+          text-decoration: none;
+          font-weight: 600;
+        }
+        .c-bottom-actions {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          flex-wrap: wrap;
+        }
+        .c-payment-chips {
+          display: flex;
+          gap: 5px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .c-chip {
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: #b09f92;
+          font-size: 0.65rem;
+          font-weight: 600;
+          padding: 2px 7px;
+          border-radius: 4px;
+        }
+        .c-chip.gold {
+          background: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.3);
+          color: #fcd34d;
+        }
+
+        /* Staff Portal Button */
+        .c-staff-portal-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.18) 0%, rgba(180, 83, 9, 0.28) 100%);
+          border: 1px solid rgba(245, 158, 11, 0.45);
+          color: #fef3c7;
+          font-size: 0.72rem;
+          font-weight: 700;
+          padding: 5px 12px;
+          border-radius: 20px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 6px rgba(0,0,0,0.2);
+          white-space: nowrap;
+        }
+        .c-staff-portal-btn:hover {
+          background: #b45309;
+          color: #ffffff;
+          border-color: #f59e0b;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 10px rgba(180, 83, 9, 0.35);
+        }
+
+        /* Policy Modal */
         .policy-modal-backdrop {
           position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.75);
-          backdrop-filter: blur(6px);
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(5px);
+          z-index: 999999;
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 10000;
-          padding: 20px;
-          animation: fadeIn 0.2s ease;
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          padding: 16px;
         }
         .policy-modal-card {
-          background: #1c0e08;
-          border: 1px solid rgba(217, 119, 6, 0.3);
-          border-radius: 18px;
-          max-width: 560px;
+          background: #ffffff;
+          color: #1e293b;
+          border-radius: 16px;
+          max-width: 540px;
           width: 100%;
-          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
           overflow: hidden;
-          animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+          animation: popIn 0.2s ease-out;
         }
-        @keyframes scaleUp {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
+        @keyframes popIn {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
         }
         .policy-modal-header {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
-          padding: 24px 28px 18px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(255, 255, 255, 0.02);
+          align-items: flex-start;
+          padding: 18px 22px 14px;
+          border-bottom: 1px solid #f1f5f9;
         }
         .policy-pill-badge {
           display: inline-block;
           font-size: 0.7rem;
           font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-          color: #fbbf24;
-          background: rgba(251, 191, 36, 0.12);
-          border: 1px solid rgba(251, 191, 36, 0.25);
+          background: #ecfdf5;
+          color: #047857;
           padding: 2px 8px;
-          border-radius: 4px;
-          margin-bottom: 6px;
+          border-radius: 6px;
+          margin-bottom: 4px;
         }
-        .policy-header-title h3 {
-          color: #ffffff;
-          font-size: 1.25rem;
-          font-family: var(--font-heading, sans-serif);
+        .policy-modal-header h3 {
+          font-size: 1.05rem;
+          font-weight: 800;
+          color: #0f172a;
           margin: 0;
         }
         .policy-modal-close {
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          color: #d1bfb3;
-          width: 34px;
-          height: 34px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          background: none;
+          border: none;
+          color: #64748b;
           cursor: pointer;
-          transition: all 0.2s ease;
+          padding: 4px;
+          border-radius: 6px;
         }
         .policy-modal-close:hover {
-          background: rgba(255, 255, 255, 0.18);
-          color: #ffffff;
+          color: #0f172a;
+          background: #f1f5f9;
         }
         .policy-modal-body {
-          padding: 24px 28px;
+          padding: 18px 22px;
+          max-height: 65vh;
+          overflow-y: auto;
         }
         .policy-desc-text {
-          color: #d8c7bc;
-          font-size: 0.92rem;
+          font-size: 0.86rem;
+          color: #475569;
           line-height: 1.5;
-          margin-bottom: 18px;
+          margin: 0 0 14px;
         }
         .policy-points-list {
           list-style: none;
@@ -1258,123 +902,88 @@ export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
           margin: 0;
           display: flex;
           flex-direction: column;
-          gap: 12px;
+          gap: 10px;
         }
         .policy-points-list li {
           display: flex;
           align-items: flex-start;
-          gap: 10px;
-          font-size: 0.88rem;
-          color: #bfaea2;
+          gap: 9px;
+          font-size: 0.82rem;
+          color: #334155;
           line-height: 1.45;
         }
         .point-icon {
-          color: #22c55e;
+          color: #16a34a;
           flex-shrink: 0;
           margin-top: 2px;
         }
         .policy-modal-footer {
+          padding: 12px 22px 16px;
+          border-top: 1px solid #f1f5f9;
           display: flex;
-          align-items: center;
           justify-content: space-between;
-          padding: 18px 28px;
-          background: rgba(0, 0, 0, 0.3);
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          gap: 12px;
-          flex-wrap: wrap;
+          align-items: center;
+          gap: 10px;
+          background: #fafaf9;
         }
         .policy-wa-btn {
           display: inline-flex;
           align-items: center;
-          gap: 8px;
-          background: #25d366;
+          gap: 6px;
+          background: #15803d;
           color: #ffffff;
-          font-size: 0.84rem;
-          font-weight: 700;
-          padding: 8px 16px;
+          padding: 7px 14px;
           border-radius: 8px;
-          transition: background 0.2s ease;
-        }
-        .policy-wa-btn:hover {
-          background: #20ba59;
+          font-size: 0.78rem;
+          font-weight: 700;
+          text-decoration: none;
         }
         .policy-close-action-btn {
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          padding: 8px 18px;
+          background: #e2e8f0;
+          color: #334155;
+          border: none;
+          padding: 7px 16px;
           border-radius: 8px;
-          font-size: 0.84rem;
+          font-size: 0.78rem;
+          font-weight: 700;
           cursor: pointer;
-        }
-        .policy-close-action-btn:hover {
-          background: rgba(255, 255, 255, 0.15);
         }
 
         /* Responsive Breakpoints */
-        @media (max-width: 1080px) {
-          .footer-columns-grid {
-            grid-template-columns: 1.3fr 1fr 1fr;
-            gap: 30px;
+        @media (max-width: 960px) {
+          .compact-cols-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
           }
-          .footer-contact-col {
-            grid-column: span 3;
+          .c-brand-desc {
+            max-width: 100%;
           }
-          .contact-cards-stack {
+        }
+
+        @media (max-width: 600px) {
+          .compact-trust-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 14px;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
           }
-        }
-
-        @media (max-width: 900px) {
-          .trust-badges-grid {
-            grid-template-columns: repeat(2, 1fr);
+          .c-trust-item {
+            font-size: 0.72rem;
           }
-        }
-
-        @media (max-width: 768px) {
-          .site-footer {
-            /* Critical safe-area clearance for MobileBottomNav */
-            padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px));
-          }
-          .footer-columns-grid {
+          .compact-cols-grid {
             grid-template-columns: 1fr;
-            gap: 32px;
+            gap: 20px;
           }
-          .footer-contact-col {
-            grid-column: span 1;
+          .compact-footer-main {
+            padding: 24px 0 20px;
           }
-          .contact-cards-stack {
-            grid-template-columns: 1fr;
-          }
-          .bottom-bar-inner {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
-          }
-          .bottom-bar-right-group {
+          .c-bottom-inner {
             flex-direction: column;
             align-items: flex-start;
             gap: 12px;
+          }
+          .c-bottom-actions {
             width: 100%;
-          }
-          .staff-portal-btn {
-            align-self: flex-start;
-          }
-        }
-
-        @media (max-width: 520px) {
-          .trust-badges-grid {
-            grid-template-columns: 1fr;
-          }
-          .helpline-numbers-row {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 2px;
-          }
-          .num-sep {
-            display: none;
+            justify-content: space-between;
           }
         }
       `}</style>

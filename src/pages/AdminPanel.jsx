@@ -6,8 +6,10 @@ import {
   Edit3, Trash2, Printer, CheckCircle, Clock, Truck, Home, 
   FileText, ArrowRight, ArrowLeft, Mail, Lock, Check, AlertCircle,
   Menu, X, IndianRupee, Phone, ExternalLink, RefreshCw, Sparkles, Filter, MessageCircle,
-  ShieldAlert, Loader2, CreditCard, ShoppingBag, TrendingUp, Copy, MapPin
+  ShieldAlert, Loader2, CreditCard, ShoppingBag, TrendingUp, Copy, MapPin, Grid, List,
+  Download, FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel, exportToPDF, exportToCSV } from '../services/exportService';
 import Billing from './Billing';
 import { createOrder } from '../services/orderService';
 import { useAuth } from '../context/AuthContext';
@@ -20,11 +22,13 @@ import {
 } from '../services/staffService';
 import { 
   subscribeToEnquiriesAdmin, 
+  getEnquiriesAdmin,
   updateEnquiryStatus, 
   deleteEnquiry 
 } from '../services/enquiryService';
 import { 
   subscribeToReviews, 
+  getReviews,
   updateReviewStatus, 
   deleteReview 
 } from '../services/reviewService';
@@ -63,14 +67,17 @@ export default function AdminPanel({
   onAddProduct,
   onEditProduct,
   onDeleteProduct,
+  onDeleteMultipleProducts,
   onUpdateOrderStatus,
   onEditOrder,
   onDeleteOrder,
+  onDeleteMultipleOrders,
   onViewInvoice,
   onPlaceOrder,
   onBackToStore,
   onLogoutAdmin,
-  storeSettings: propStoreSettings
+  storeSettings: propStoreSettings,
+  showToast: propShowToast
 }) {
   // Real Firebase Authentication and ID token custom claim verification
   const { currentUser, isAdmin, isSuperAdmin, login, logout, resetPassword, refreshClaims, loading: authLoading } = useAuth();
@@ -127,15 +134,26 @@ export default function AdminPanel({
   const [productCatFilter, setProductCatFilter] = useState('all');
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [selectedProductIds, setSelectedProductIds] = useState([]);
+  const [productViewMode, setProductViewMode] = useState('grid'); // 'grid' | 'table'
 
   // Orders Tab states
   const [orderSearch, setOrderSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('all');
   const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
 
   const [editingOrder, setEditingOrder] = useState(null);
   const [selectedOrderForDetails, setSelectedOrderForDetails] = useState(null);
   const [copiedOrderId, setCopiedOrderId] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [deletedCustomerIds, setDeletedCustomerIds] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('admin_deleted_customer_ids') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
 
   // Sales Chart Period
   const [salesPeriod, setSalesPeriod] = useState('This Week');
@@ -157,6 +175,10 @@ export default function AdminPanel({
   const [siteContent, setSiteContent] = useState(DEFAULT_STORE_CONFIG);
   const [storeSettings, setStoreSettings] = useState(DEFAULT_STORE_CONFIG);
   const [savingSettings, setSavingSettings] = useState(false);
+
+  // Reports Export dropdown state
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Admin Profile Credentials State (Derived dynamically from authenticated Firebase user)
   const [adminProfile, setAdminProfile] = useState({
@@ -186,6 +208,7 @@ export default function AdminPanel({
     stock: 15,
     badge: 'BEST SELLER',
     image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+    gallery: [],
     description: '',
     featured: true,
     features: [],
@@ -218,6 +241,12 @@ export default function AdminPanel({
       }).filter(Boolean);
     }
 
+    const existingGallery = Array.isArray(item.gallery) && item.gallery.length > 0
+      ? item.gallery.filter(Boolean)
+      : (Array.isArray(item.images) && item.images.length > 0
+          ? item.images.filter(Boolean)
+          : [item.image || item.imageUrl].filter(Boolean));
+
     setEditingProduct({
       ...item,
       name: item.name || item.title || '',
@@ -230,6 +259,7 @@ export default function AdminPanel({
       stock: item.stock !== undefined ? item.stock : (item.stockCount !== undefined ? item.stockCount : 10),
       badge: item.badge || '',
       image: item.image || item.imageUrl || '',
+      gallery: existingGallery,
       description: item.description || '',
       features: normalizedFeatures,
       additionalInformation: normalizedAdditionalInfo
@@ -240,6 +270,7 @@ export default function AdminPanel({
 
   const showToast = (msg) => {
     setToast(msg);
+    if (propShowToast) propShowToast(msg);
     setTimeout(() => setToast(''), 3000);
   };
 
@@ -419,7 +450,7 @@ export default function AdminPanel({
       id: '',
       name: '',
       category: 'furniture',
-      image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=600&q=80',
+      image: '',
       badge: 'Popular',
       order: categoriesList.length + 1
     });
@@ -578,8 +609,15 @@ export default function AdminPanel({
     }
   };
 
-  // 1. Real-time listener for Enquiries in Firestore
+  // 1. Real-time listener for Enquiries in Firestore (with initial fetch)
   useEffect(() => {
+    getEnquiriesAdmin().then((live) => {
+      if (Array.isArray(live) && live.length > 0) {
+        setEnquiries(live);
+        setLoadingEnquiries(false);
+      }
+    }).catch(() => {});
+
     const unsub = subscribeToEnquiriesAdmin((live) => {
       setEnquiries(live || []);
       setLoadingEnquiries(false);
@@ -587,8 +625,15 @@ export default function AdminPanel({
     return () => unsub();
   }, []);
 
-  // 1b. Real-time listener for Customer Reviews & Contact Feedback in Firestore
+  // 1b. Real-time listener for Customer Reviews & Contact Feedback in Firestore (with initial fetch)
   useEffect(() => {
+    getReviews().then((live) => {
+      if (Array.isArray(live) && live.length > 0) {
+        setCustomerReviews(live);
+        setLoadingReviews(false);
+      }
+    }).catch(() => {});
+
     const unsub = subscribeToReviews((live) => {
       setCustomerReviews(live || []);
       setLoadingReviews(false);
@@ -918,7 +963,7 @@ export default function AdminPanel({
   const customerMap = {};
   orders.forEach((o) => {
     const key = o.customer?.phone || o.customer?.email || (o.customer?.name ? o.customer.name.toLowerCase() : null) || o.customerUid;
-    if (!key) return;
+    if (!key || deletedCustomerIds.includes(key)) return;
     if (!customerMap[key]) {
       customerMap[key] = {
         id: key,
@@ -931,21 +976,66 @@ export default function AdminPanel({
         pincode: o.customer?.pincode || '',
         orderCount: 1,
         totalSpent: Number(o.total) || 0,
-        lastOrder: o.date?.split(',')[0] || 'Recent',
-        lastOrderId: o.id
+        lastOrder: o.date?.split(',')[0] || (o.createdAt?.toDate ? o.createdAt.toDate().toLocaleDateString('en-IN') : 'Recent'),
+        lastOrderId: o.id,
+        orderIds: [o.id],
+        orders: [o]
       };
       customerList.push(customerMap[key]);
     } else {
       customerMap[key].orderCount += 1;
       customerMap[key].totalSpent += (Number(o.total) || 0);
+      if (!customerMap[key].orderIds.includes(o.id)) {
+        customerMap[key].orderIds.push(o.id);
+        customerMap[key].orders.push(o);
+      }
       if (o.customer?.address && (!customerMap[key].address || customerMap[key].address === '—')) {
         customerMap[key].address = o.customer.address;
       }
       if (o.customer?.email && (!customerMap[key].email || customerMap[key].email === '—')) {
         customerMap[key].email = o.customer.email;
       }
+      if (o.customer?.city && (!customerMap[key].city || customerMap[key].city === '—')) {
+        customerMap[key].city = o.customer.city;
+      }
+      if (o.customer?.pincode && !customerMap[key].pincode) {
+        customerMap[key].pincode = o.customer.pincode;
+      }
     }
   });
+
+  const handleDeleteCustomer = async (cust) => {
+    if (!cust) return;
+    const count = (cust.orderIds || []).length;
+    const confirmMsg = count > 0 
+      ? `Are you sure you want to delete customer "${cust.name}"?\n\nThis will permanently delete this customer profile and their ${count} associated order record${count > 1 ? 's' : ''} from Cloud Firestore.\n\nThis action cannot be undone.`
+      : `Are you sure you want to remove customer "${cust.name}" from the directory?`;
+
+    if (window.confirm(confirmMsg)) {
+      try {
+        if (count > 0) {
+          if (onDeleteMultipleOrders) {
+            await onDeleteMultipleOrders(cust.orderIds);
+          } else if (onDeleteOrder) {
+            for (const id of cust.orderIds) {
+              await onDeleteOrder(id);
+            }
+          }
+        }
+        const updated = [...deletedCustomerIds, cust.id];
+        setDeletedCustomerIds(updated);
+        try {
+          localStorage.setItem('admin_deleted_customer_ids', JSON.stringify(updated));
+        } catch (e) {}
+
+        setSelectedCustomer(null);
+        showToast(`Customer "${cust.name}" deleted successfully`);
+      } catch (err) {
+        console.error('Error deleting customer:', err);
+        showToast(`Error deleting customer: ${err.message}`);
+      }
+    }
+  };
 
   // Total Catalog Inventory Valuation
   const totalCatalogInventoryValue = activeProducts.reduce((sum, p) => sum + ((Number(p.price) || 0) * (Number(p.stock) || 10)), 0);
@@ -957,6 +1047,67 @@ export default function AdminPanel({
       currency: 'INR',
       maximumFractionDigits: 0
     }).format(val || 0);
+  };
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (isExportMenuOpen && !e.target.closest('.export-action-container')) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [isExportMenuOpen]);
+
+  // Reports Export Handler
+  const handleExportData = async (format) => {
+    try {
+      setIsExporting(true);
+      setIsExportMenuOpen(false);
+
+      const exportPayload = {
+        activeProducts,
+        orders,
+        customerList,
+        reviews: customerReviews,
+        stats: {
+          totalRevenue,
+          totalInventoryValue: totalCatalogInventoryValue
+        },
+        storeSettings
+      };
+
+      if (format === 'excel') {
+        const result = exportToExcel(exportPayload);
+        if (result?.success) {
+          showToast(`Excel workbook exported successfully (${result.filename})`);
+        } else {
+          showToast('Excel export failed. Please try again.');
+        }
+      } else if (format === 'pdf') {
+        const result = exportToPDF(exportPayload);
+        if (result?.success) {
+          showToast('Print-to-PDF report opened. Select "Save as PDF" to download.');
+        } else if (result?.reason === 'popup_blocked') {
+          showToast('Popup blocked! Please allow popups to view and save PDF.');
+        } else {
+          showToast('PDF export failed. Please try again.');
+        }
+      } else if (format === 'csv') {
+        const result = exportToCSV(exportPayload);
+        if (result?.success) {
+          showToast(`CSV data file exported successfully (${result.filename})`);
+        } else {
+          showToast('CSV export failed. Please try again.');
+        }
+      }
+    } catch (err) {
+      console.error('Export error:', err);
+      showToast('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Loading state while checking Firebase ID token custom claims
@@ -2338,7 +2489,34 @@ export default function AdminPanel({
                 <h3>Products Management</h3>
                 <p>Manage product catalog inventory, pricing, discounts, and badges.</p>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button"
+                  className="btn-select-all-quick"
+                  onClick={() => {
+                    if (selectedProductIds.length === activeProducts.length && activeProducts.length > 0) {
+                      setSelectedProductIds([]);
+                    } else {
+                      setSelectedProductIds(activeProducts.map(p => p.id));
+                    }
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Toggle select all products"
+                >
+                  <Check size={14} /> {selectedProductIds.length === activeProducts.length && activeProducts.length > 0 ? 'Deselect All' : `Select All (${activeProducts.length})`}
+                </button>
                 <button 
                   className="add-quick-product-btn"
                   onClick={() => setIsAddProductModalOpen(true)}
@@ -2348,7 +2526,35 @@ export default function AdminPanel({
               </div>
             </div>
 
-            {/* Filter and Search Bar */}
+            {/* Dedicated Product Count Metric Card */}
+            <div className="product-count-metric-card animate-fade-in">
+              <div className="product-count-main-info">
+                <div className="product-count-icon-halo">
+                  <Package size={26} strokeWidth={2.3} />
+                </div>
+                <div>
+                  <span className="product-count-label">Total Catalog Inventory</span>
+                  <div className="product-count-number-row">
+                    <span className="product-count-digit">{activeProducts.length}</span>
+                    <span className="product-count-unit">Total Products</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="product-count-category-chips">
+                <span className="prod-cat-stat-chip">
+                  <Layers size={13} /> Furniture: <strong>{activeProducts.filter(p => p.category === 'furniture').length}</strong>
+                </span>
+                <span className="prod-cat-stat-chip">
+                  <Layers size={13} /> Electronics: <strong>{activeProducts.filter(p => p.category === 'electronics').length}</strong>
+                </span>
+                <span className="prod-cat-stat-chip">
+                  <Layers size={13} /> Appliances: <strong>{activeProducts.filter(p => p.category === 'appliances').length}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar with Grid/Table Switcher */}
             <div className="subpage-filters-bar">
               <div className="filter-search-box">
                 <Search size={16} />
@@ -2372,155 +2578,394 @@ export default function AdminPanel({
                   <option value="appliances">Appliances</option>
                 </select>
               </div>
+
+              {/* View Switcher: Grid View vs Table View */}
+              <div className="product-view-switcher">
+                <button
+                  type="button"
+                  className={`btn-view-pill ${productViewMode === 'grid' ? 'active' : ''}`}
+                  onClick={() => setProductViewMode('grid')}
+                  title="Grid View"
+                >
+                  <Grid size={15} /> Grid View
+                </button>
+                <button
+                  type="button"
+                  className={`btn-view-pill ${productViewMode === 'table' ? 'active' : ''}`}
+                  onClick={() => setProductViewMode('table')}
+                  title="Table View"
+                >
+                  <List size={15} /> Table View
+                </button>
+              </div>
             </div>
 
-            {/* Products Table */}
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Category</th>
-                    <th>Selling Price</th>
-                    <th>Original MRP</th>
-                    <th>Discount</th>
-                    <th>Badge</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(() => {
-                    const filtered = activeProducts.filter((p) => {
-                      const matchCat = productCatFilter === 'all' || p.category === productCatFilter;
-                      const q = productSearch.toLowerCase().trim();
-                      const matchSearch = q === '' || 
-                        (p.name && p.name.toLowerCase().includes(q)) ||
-                        (p.title && p.title.toLowerCase().includes(q)) ||
-                        (p.id && p.id.toLowerCase().includes(q)) ||
-                        (p.modelNumber && p.modelNumber.toLowerCase().includes(q));
-                      return matchCat && matchSearch;
-                    });
-                    if (filtered.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan="8" style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                              <Package size={40} color="#94a3b8" />
-                              <strong style={{ fontSize: '1.05rem', color: '#334155' }}>No products found</strong>
-                              <small style={{ color: '#64748b' }}>No products available in the Firestore database matching your criteria. Click "+ Add New Product" to create one.</small>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    }
-                    return filtered.map((item) => (
-                      <tr key={item.id}>
-                        <td>
-                          <div className="product-table-item-cell">
-                            <img src={item.image || item.imageUrl} alt={item.name} className="product-thumb-sm" />
-                            <div>
-                              <strong>{item.name || item.title}</strong>
-                              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '2px' }}>
-                                <small>ID: {item.id}</small>
-                                {item.modelNumber && (
-                                  <span style={{ 
-                                    fontSize: '0.72rem', 
-                                    fontWeight: 700, 
-                                    color: '#854d0e', 
-                                    background: '#fef3c7', 
-                                    padding: '1px 6px', 
-                                    borderRadius: '4px',
-                                    border: '1px solid #fde68a'
-                                  }}>
-                                    Model: {item.modelNumber}
+            {(() => {
+              const filtered = activeProducts.filter((p) => {
+                const matchCat = productCatFilter === 'all' || p.category === productCatFilter;
+                const q = productSearch.toLowerCase().trim();
+                const matchSearch = q === '' || 
+                  (p.name && p.name.toLowerCase().includes(q)) ||
+                  (p.title && p.title.toLowerCase().includes(q)) ||
+                  (p.id && p.id.toLowerCase().includes(q)) ||
+                  (p.modelNumber && p.modelNumber.toLowerCase().includes(q));
+                return matchCat && matchSearch;
+              });
+
+              const isAllFilteredSelected = filtered.length > 0 && filtered.every((p) => selectedProductIds.includes(p.id));
+
+              return (
+                <>
+                  {/* Bulk Actions Banner for Products */}
+                  {selectedProductIds.length > 0 && (
+                    <div className="admin-bulk-action-bar animate-fade-in">
+                      <div className="admin-bulk-action-info">
+                        <CheckCircle size={16} color="#1e40af" />
+                        <span><strong>{selectedProductIds.length}</strong> of {activeProducts.length} products selected</span>
+                      </div>
+                      <div className="admin-bulk-action-buttons">
+                        <button
+                          type="button"
+                          className="btn-bulk-select"
+                          onClick={() => {
+                            const newSet = new Set([...selectedProductIds, ...filtered.map(p => p.id)]);
+                            setSelectedProductIds(Array.from(newSet));
+                          }}
+                        >
+                          Select All Filtered ({filtered.length})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-bulk-select"
+                          onClick={() => setSelectedProductIds(activeProducts.map(p => p.id))}
+                        >
+                          Select All Total ({activeProducts.length})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-bulk-select"
+                          onClick={() => setSelectedProductIds([])}
+                        >
+                          Deselect All
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-bulk-delete"
+                          onClick={async () => {
+                            const count = selectedProductIds.length;
+                            if (window.confirm(`Are you sure you want to permanently delete ${count} selected product${count > 1 ? 's' : ''} from the database? This action cannot be undone.`)) {
+                              if (onDeleteMultipleProducts) {
+                                await onDeleteMultipleProducts(selectedProductIds);
+                              } else if (onDeleteProduct) {
+                                for (const id of selectedProductIds) {
+                                  onDeleteProduct(id);
+                                }
+                              }
+                              showToast(`Deleted ${count} products successfully`);
+                              setSelectedProductIds([]);
+                            }
+                          }}
+                        >
+                          <Trash2 size={14} /> Delete Selected ({selectedProductIds.length})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {productViewMode === 'grid' ? (
+                    /* 1. GRID-LIKE VIEW FOR PRODUCTS */
+                    <div className="admin-products-cards-grid animate-fade-in">
+                      {filtered.length === 0 ? (
+                        <div className="orders-empty-state modern" style={{ gridColumn: '1 / -1', padding: '48px 16px', textAlign: 'center' }}>
+                          <div className="empty-icon-halo">
+                            <Package size={36} color="#94a3b8" />
+                          </div>
+                          <h4 style={{ marginTop: '12px', color: '#1e293b' }}>No Products Found</h4>
+                          <p style={{ color: '#64748b' }}>No products available matching your search or category filter. Try resetting filters or click "+ Add New Product".</p>
+                        </div>
+                      ) : (
+                        filtered.map((item) => {
+                          const isSelected = selectedProductIds.includes(item.id);
+                          const stockCount = item.stock !== undefined && item.stock !== '' ? Number(item.stock) : 10;
+                          const isLowStock = stockCount < 5;
+
+                          return (
+                            <div 
+                              key={item.id} 
+                              className={`admin-product-card modern ${isSelected ? 'card-selected' : ''}`}
+                            >
+                              {/* Card Media Header with Checkbox and Badges */}
+                              <div className="admin-product-card-thumb">
+                                <div className="admin-card-select-overlay" onClick={(e) => e.stopPropagation()}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => {
+                                      setSelectedProductIds(prev =>
+                                        prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                                      );
+                                    }}
+                                    className="admin-product-checkbox"
+                                    title="Select product"
+                                  />
+                                </div>
+
+                                <span className="admin-card-cat-badge">
+                                  {item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1) : 'Furniture'}
+                                </span>
+
+                                {item.badge && (
+                                  <span className="admin-card-promo-badge">
+                                    {item.badge}
                                   </span>
                                 )}
+
+                                <img 
+                                  src={item.image || item.imageUrl || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=500&q=80'} 
+                                  alt={item.name || item.title} 
+                                  loading="lazy" 
+                                />
+                              </div>
+
+                              {/* Card Body */}
+                              <div className="admin-product-card-body">
+                                <div className="admin-card-meta-row">
+                                  {item.modelNumber ? (
+                                    <span className="admin-card-model-tag" title={`Model: ${item.modelNumber}`}>
+                                      Model: {item.modelNumber}
+                                    </span>
+                                  ) : (
+                                    <span className="admin-card-id-tag">ID: {item.id}</span>
+                                  )}
+                                  {isLowStock ? (
+                                    <span className="badge-low-stock-sm">
+                                      <AlertCircle size={11} /> Low: {stockCount}
+                                    </span>
+                                  ) : (
+                                    <span className="badge-in-stock-sm">
+                                      <Check size={11} /> {stockCount} in stock
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h4 className="admin-product-card-title" title={item.name || item.title}>
+                                  {item.name || item.title}
+                                </h4>
+
+                                {/* Price Row */}
+                                <div className="admin-product-card-price-row">
+                                  <div className="price-block">
+                                    <span className="card-current-price">{formatPrice(item.price)}</span>
+                                    {(item.originalPrice || item.price * 1.25) > item.price && (
+                                      <span className="card-mrp-price">{formatPrice(item.originalPrice || item.price * 1.25)}</span>
+                                    )}
+                                  </div>
+                                  {item.discount && (
+                                    <span className="card-discount-pill">{item.discount}% OFF</span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Card Footer Actions */}
+                              <div className="admin-product-card-actions">
+                                <button
+                                  type="button"
+                                  className="btn-card-action edit"
+                                  onClick={() => handleOpenEditProduct(item)}
+                                  title="Edit Product Details"
+                                >
+                                  <Edit3 size={14} /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-card-action delete"
+                                  onClick={() => {
+                                    if (window.confirm(`Delete "${item.name}" from catalog?`)) {
+                                      onDeleteProduct && onDeleteProduct(item.id);
+                                      showToast('Product removed');
+                                    }
+                                  }}
+                                  title="Delete Product"
+                                >
+                                  <Trash2 size={14} /> Delete
+                                </button>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="category-pill-tag">{item.category}</span>
-                        </td>
-                        <td><strong>{formatPrice(item.price)}</strong></td>
-                        <td><span className="text-strike">{formatPrice(item.originalPrice || item.price * 1.25)}</span></td>
-                        <td><span className="discount-tag">{item.discount || 20}% OFF</span></td>
-                        <td>
-                          {item.badge ? (
-                            <span className="badge-promo-pill">{item.badge}</span>
+                          );
+                        })
+                      )}
+                    </div>
+                  ) : (
+                    /* 2. TABLE VIEW FOR PRODUCTS */
+                    <div className="admin-table-wrap">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: '46px', textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={isAllFilteredSelected}
+                                onChange={() => {
+                                  if (isAllFilteredSelected) {
+                                    const filteredIdSet = new Set(filtered.map(p => p.id));
+                                    setSelectedProductIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+                                  } else {
+                                    const newSet = new Set([...selectedProductIds, ...filtered.map(p => p.id)]);
+                                    setSelectedProductIds(Array.from(newSet));
+                                  }
+                                }}
+                                title={isAllFilteredSelected ? "Deselect all filtered products" : "Select all filtered products"}
+                                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#c85a17' }}
+                              />
+                            </th>
+                            <th>Item</th>
+                            <th>Category</th>
+                            <th>Selling Price</th>
+                            <th>Original MRP</th>
+                            <th>Discount</th>
+                            <th>Badge</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.length === 0 ? (
+                            <tr>
+                              <td colSpan="9" style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                                  <Package size={40} color="#94a3b8" />
+                                  <strong style={{ fontSize: '1.05rem', color: '#334155' }}>No products found</strong>
+                                  <small style={{ color: '#64748b' }}>No products available in the Firestore database matching your criteria. Click "+ Add New Product" to create one.</small>
+                                </div>
+                              </td>
+                            </tr>
                           ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
-                        <td>
-                          {(() => {
-                            const stockCount = item.stock !== undefined && item.stock !== '' ? Number(item.stock) : 10;
-                            if (stockCount < 5) {
+                            filtered.map((item) => {
+                              const isSelected = selectedProductIds.includes(item.id);
                               return (
-                                <span className="badge-low-stock" style={{
-                                  background: '#fef2f2',
-                                  color: '#dc2626',
-                                  border: '1px solid #fecaca',
-                                  padding: '3px 9px',
-                                  borderRadius: '12px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 700,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px'
-                                }}>
-                                  <AlertCircle size={12} /> Low: {stockCount} left
-                                </span>
+                                <tr key={item.id} className={isSelected ? 'row-selected' : ''}>
+                                  <td style={{ width: '46px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => {
+                                        setSelectedProductIds(prev =>
+                                          prev.includes(item.id) ? prev.filter(id => id !== item.id) : [...prev, item.id]
+                                        );
+                                      }}
+                                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#c85a17' }}
+                                    />
+                                  </td>
+                                  <td>
+                                    <div className="product-table-item-cell">
+                                      <img src={item.image || item.imageUrl} alt={item.name} className="product-thumb-sm" />
+                                      <div>
+                                        <strong>{item.name || item.title}</strong>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginTop: '2px' }}>
+                                          <small>ID: {item.id}</small>
+                                          {item.modelNumber && (
+                                            <span style={{ 
+                                              fontSize: '0.72rem', 
+                                              fontWeight: 700, 
+                                              color: '#854d0e', 
+                                              background: '#fef3c7', 
+                                              padding: '1px 6px', 
+                                              borderRadius: '4px',
+                                              border: '1px solid #fde68a'
+                                            }}>
+                                              Model: {item.modelNumber}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span className="category-pill-tag">{item.category}</span>
+                                  </td>
+                                  <td><strong>{formatPrice(item.price)}</strong></td>
+                                  <td><span className="text-strike">{formatPrice(item.originalPrice || item.price * 1.25)}</span></td>
+                                  <td><span className="discount-tag">{item.discount || 20}% OFF</span></td>
+                                  <td>
+                                    {item.badge ? (
+                                      <span className="badge-promo-pill">{item.badge}</span>
+                                    ) : (
+                                      <span className="text-muted">-</span>
+                                    )}
+                                  </td>
+                                  <td>
+                                    {(() => {
+                                      const stockCount = item.stock !== undefined && item.stock !== '' ? Number(item.stock) : 10;
+                                      if (stockCount < 5) {
+                                        return (
+                                          <span className="badge-low-stock" style={{
+                                            background: '#fef2f2',
+                                            color: '#dc2626',
+                                            border: '1px solid #fecaca',
+                                            padding: '3px 9px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 700,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                          }}>
+                                            <AlertCircle size={12} /> Low: {stockCount} left
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span className="badge-in-stock" style={{
+                                          background: '#f0fdf4',
+                                          color: '#16a34a',
+                                          border: '1px solid #bbf7d0',
+                                          padding: '3px 9px',
+                                          borderRadius: '12px',
+                                          fontSize: '0.75rem',
+                                          fontWeight: 600,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }}>
+                                          <Check size={12} /> {stockCount} in stock
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td>
+                                    <div className="table-actions-group">
+                                      <button
+                                        className="table-action-icon-btn edit"
+                                        onClick={() => handleOpenEditProduct(item)}
+                                        title="Edit Product"
+                                      >
+                                        <Edit3 size={15} />
+                                      </button>
+                                      <button
+                                        className="table-action-icon-btn delete"
+                                        onClick={() => {
+                                          if (window.confirm(`Delete "${item.name}" from catalog?`)) {
+                                            onDeleteProduct && onDeleteProduct(item.id);
+                                            showToast('Product removed');
+                                          }
+                                        }}
+                                        title="Delete Product"
+                                      >
+                                        <Trash2 size={15} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
                               );
-                            }
-                            return (
-                              <span className="badge-in-stock" style={{
-                                background: '#f0fdf4',
-                                color: '#16a34a',
-                                border: '1px solid #bbf7d0',
-                                padding: '3px 9px',
-                                borderRadius: '12px',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}>
-                                <Check size={12} /> {stockCount} in stock
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td>
-                          <div className="table-actions-group">
-                            <button
-                              className="table-action-icon-btn edit"
-                              onClick={() => handleOpenEditProduct(item)}
-                              title="Edit Product"
-                            >
-                              <Edit3 size={15} />
-                            </button>
-                            <button
-                              className="table-action-icon-btn delete"
-                              onClick={() => {
-                                if (window.confirm(`Delete "${item.name}" from catalog?`)) {
-                                  onDeleteProduct && onDeleteProduct(item.id);
-                                  showToast('Product removed');
-                                }
-                              }}
-                              title="Delete Product"
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
-            </div>
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -2536,7 +2981,34 @@ export default function AdminPanel({
                 <h3>Orders &amp; Invoices</h3>
                 <p>Manage customer orders, update real-time fulfillment stages, and print GST tax invoices.</p>
               </div>
-              <div className="orders-header-actions">
+              <div className="orders-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button 
+                  type="button"
+                  className="btn-select-all-quick"
+                  onClick={() => {
+                    if (selectedOrderIds.length === orders.length && orders.length > 0) {
+                      setSelectedOrderIds([]);
+                    } else {
+                      setSelectedOrderIds(orders.map(o => o.id));
+                    }
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#ffffff',
+                    color: '#334155',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Toggle select all orders"
+                >
+                  <Check size={14} /> {selectedOrderIds.length === orders.length && orders.length > 0 ? 'Deselect All' : `Select All (${orders.length})`}
+                </button>
                 <button 
                   type="button" 
                   className="btn-pos-counter-bill"
@@ -2760,8 +3232,66 @@ export default function AdminPanel({
                 );
               }
 
+              const isAllFilteredOrdersSelected = filteredOrders.length > 0 && filteredOrders.every(o => selectedOrderIds.includes(o.id));
+
               return (
                 <>
+                  {/* Bulk Actions Banner for Orders */}
+                  {selectedOrderIds.length > 0 && (
+                    <div className="admin-bulk-action-bar animate-fade-in" style={{ marginBottom: '16px' }}>
+                      <div className="admin-bulk-action-info">
+                        <CheckCircle size={16} color="#1e40af" />
+                        <span><strong>{selectedOrderIds.length}</strong> of {orders.length} orders selected</span>
+                      </div>
+                      <div className="admin-bulk-action-buttons">
+                        <button
+                          type="button"
+                          className="btn-bulk-select"
+                          onClick={() => {
+                            const newSet = new Set([...selectedOrderIds, ...filteredOrders.map(o => o.id)]);
+                            setSelectedOrderIds(Array.from(newSet));
+                          }}
+                        >
+                          Select All Filtered ({filteredOrders.length})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-bulk-select"
+                          onClick={() => setSelectedOrderIds(orders.map(o => o.id))}
+                        >
+                          Select All Total ({orders.length})
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-bulk-select"
+                          onClick={() => setSelectedOrderIds([])}
+                        >
+                          Deselect All
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-bulk-delete"
+                          onClick={async () => {
+                            const count = selectedOrderIds.length;
+                            if (window.confirm(`Are you sure you want to permanently delete ${count} selected order${count > 1 ? 's' : ''} from records? This action cannot be undone.`)) {
+                              if (onDeleteMultipleOrders) {
+                                await onDeleteMultipleOrders(selectedOrderIds);
+                              } else if (onDeleteOrder) {
+                                for (const id of selectedOrderIds) {
+                                  onDeleteOrder(id);
+                                }
+                              }
+                              showToast(`Deleted ${count} orders successfully`);
+                              setSelectedOrderIds([]);
+                            }
+                          }}
+                        >
+                          <Trash2 size={14} /> Delete Selected ({selectedOrderIds.length})
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ========================================================= */}
                   {/* 1. DESKTOP & LAPTOP SENIOR-DESIGNER TABLE (> 820px)      */}
                   {/* ========================================================= */}
@@ -2769,6 +3299,23 @@ export default function AdminPanel({
                     <table className="admin-table orders-table modern-ui">
                       <thead>
                         <tr>
+                          <th style={{ width: '46px', textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={isAllFilteredOrdersSelected}
+                              onChange={() => {
+                                if (isAllFilteredOrdersSelected) {
+                                  const filteredIdSet = new Set(filteredOrders.map(o => o.id));
+                                  setSelectedOrderIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+                                } else {
+                                  const newSet = new Set([...selectedOrderIds, ...filteredOrders.map(o => o.id)]);
+                                  setSelectedOrderIds(Array.from(newSet));
+                                }
+                              }}
+                              title={isAllFilteredOrdersSelected ? "Deselect all filtered orders" : "Select all filtered orders"}
+                              style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#c85a17' }}
+                            />
+                          </th>
                           <th style={{ width: '250px' }}>Customer Info</th>
                           <th>Purchased Items</th>
                           <th style={{ width: '140px' }}>Order Total</th>
@@ -2783,15 +3330,28 @@ export default function AdminPanel({
                           const custInitial = custName.charAt(0).toUpperCase();
                           const itemsCount = ord.items?.reduce((sum, i) => sum + (Number(i.quantity) || 1), 0) || 1;
                           const isPaid = ord.paymentStatus?.toLowerCase().includes('paid');
+                          const isSelected = selectedOrderIds.includes(ord.id);
 
                           return (
                             <tr
                               key={ord.id}
-                              className="order-table-row modern clickable-row"
+                              className={`order-table-row modern clickable-row ${isSelected ? 'row-selected' : ''}`}
                               onClick={() => setSelectedOrderForDetails(ord)}
                               title="Click to view complete order details & bill"
                               style={{ cursor: 'pointer' }}
                             >
+                              <td style={{ width: '46px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {
+                                    setSelectedOrderIds(prev =>
+                                      prev.includes(ord.id) ? prev.filter(id => id !== ord.id) : [...prev, ord.id]
+                                    );
+                                  }}
+                                  style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#c85a17' }}
+                                />
+                              </td>
                               {/* Customer Avatar & Details */}
                               <td className="customer-details-cell modern">
                                 <div className="customer-avatar-row">
@@ -2799,23 +3359,7 @@ export default function AdminPanel({
                                     {custInitial}
                                   </div>
                                   <div className="customer-meta-col">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                      <strong className="customer-name">{custName}</strong>
-                                      <span style={{
-                                        fontSize: '0.7rem',
-                                        color: '#8c3b10',
-                                        background: '#fff3ec',
-                                        padding: '1px 6px',
-                                        borderRadius: '4px',
-                                        border: '1px solid #ebdcd0',
-                                        fontWeight: 600,
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '3px'
-                                      }}>
-                                        <Eye size={10} /> View Details
-                                      </span>
-                                    </div>
+                                    <strong className="customer-name">{custName}</strong>
                                     {ord.customer?.phone && (
                                       <a
                                         href={`tel:${ord.customer.phone}`}
@@ -2978,28 +3522,43 @@ export default function AdminPanel({
                       const custInitial = custName.charAt(0).toUpperCase();
                       const isPaid = ord.paymentStatus?.toLowerCase().includes('paid');
 
+                      const isSelected = selectedOrderIds.includes(ord.id);
+
                       return (
                         <div
                           key={ord.id}
-                          className="order-mobile-card modern clickable-card"
+                          className={`order-mobile-card modern clickable-card ${isSelected ? 'card-selected' : ''}`}
                           onClick={() => setSelectedOrderForDetails(ord)}
                           style={{ cursor: 'pointer' }}
                         >
-                          {/* Card Header: Details prompt + Status Selector */}
+                          {/* Card Header: Checkbox + Details prompt + Status Selector */}
                           <div className="order-card-header-bar">
-                            <span style={{
-                              fontSize: '0.74rem',
-                              color: '#8c3b10',
-                              background: '#fff3ec',
-                              padding: '3px 8px',
-                              borderRadius: '6px',
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}>
-                              <Eye size={12} /> Tap to View Details
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={() => {
+                                  setSelectedOrderIds(prev =>
+                                    prev.includes(ord.id) ? prev.filter(id => id !== ord.id) : [...prev, ord.id]
+                                  );
+                                }}
+                                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: '#c85a17' }}
+                              />
+                              <span style={{
+                                fontSize: '0.74rem',
+                                color: '#8c3b10',
+                                background: '#fff3ec',
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}>
+                                <Eye size={12} /> Tap to View Details
+                              </span>
+                            </div>
 
                             <select
                               className={`status-selector-input executive mini ${ord.status?.toLowerCase().replace(/\s+/g, '-')}`}
@@ -3936,7 +4495,7 @@ export default function AdminPanel({
             </div>
 
             <div className="admin-table-wrap">
-              <table className="admin-table">
+              <table className="admin-table modern-ui">
                 <thead>
                   <tr>
                     <th>Customer Name</th>
@@ -3946,6 +4505,7 @@ export default function AdminPanel({
                     <th>Total Orders</th>
                     <th>Lifetime Spend</th>
                     <th>Last Active</th>
+                    <th style={{ textAlign: 'center', width: '130px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3954,7 +4514,7 @@ export default function AdminPanel({
                     return !q || c.name.toLowerCase().includes(q) || c.phone.includes(q) || c.city.toLowerCase().includes(q);
                   }).length === 0 ? (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                      <td colSpan="8" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                         {customerList.length === 0
                           ? 'No customer records in Firebase yet. When customers place orders or create accounts, they will appear here.'
                           : 'No customers match your search.'}
@@ -3972,8 +4532,39 @@ export default function AdminPanel({
                           (c.address || '').toLowerCase().includes(q);
                       })
                       .map((c, idx) => (
-                        <tr key={idx}>
-                          <td><strong>{c.name}</strong></td>
+                        <tr 
+                          key={c.id || idx}
+                          className="customer-table-row clickable-row"
+                          onClick={() => setSelectedCustomer(c)}
+                          style={{ cursor: 'pointer' }}
+                          title="Click customer to view full profile, lifetime spend, and purchased products"
+                        >
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-customer-name-link"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCustomer(c);
+                              }}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                textAlign: 'left',
+                                cursor: 'pointer',
+                                color: '#1d4ed8',
+                                fontWeight: 700,
+                                fontSize: '0.92rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}
+                            >
+                              <span>{c.name}</span>
+                              <ExternalLink size={12} color="#3b82f6" />
+                            </button>
+                          </td>
                           <td><small>{c.phone}</small></td>
                           <td><small>{c.email}</small></td>
                           <td>
@@ -3985,8 +4576,49 @@ export default function AdminPanel({
                             )}
                           </td>
                           <td><span className="cat-count-badge">{c.orderCount} Orders</span></td>
-                          <td><strong>{formatPrice(c.totalSpent)}</strong></td>
+                          <td><strong style={{ color: '#0f172a' }}>{formatPrice(c.totalSpent)}</strong></td>
                           <td><small>{c.lastOrder}</small></td>
+                          <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCustomer(c)}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #cbd5e1',
+                                  background: '#f8fafc',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 600,
+                                  color: '#1e293b',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                                title="View Customer Details"
+                              >
+                                <Eye size={13} /> View
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCustomer(c)}
+                                style={{
+                                  padding: '5px 8px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #fecaca',
+                                  background: '#fef2f2',
+                                  color: '#dc2626',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center'
+                                }}
+                                title="Delete Customer Profile"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))
                   )}
@@ -4015,14 +4647,26 @@ export default function AdminPanel({
             }
           });
 
-          // Metrics
+          // Feedbacks Metrics
           const totalFeedbacks = allFeedbacks.length;
           const avgRating = totalFeedbacks > 0 
             ? (allFeedbacks.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / totalFeedbacks).toFixed(1)
-            : '5.0';
+            : '0.0';
           const newCount = allFeedbacks.filter(r => (r.status || 'New') === 'New').length;
           const contactedCount = allFeedbacks.filter(r => r.status === 'Contacted').length;
           const resolvedCount = allFeedbacks.filter(r => r.status === 'Resolved').length;
+          const attendedPct = totalFeedbacks > 0 
+            ? Math.round(((contactedCount + resolvedCount) / totalFeedbacks) * 100) 
+            : 0;
+
+          // Catalog Metrics (dynamically computed strictly from active database products with zero mock data)
+          const totalCatalogProducts = activeProducts.length;
+          const ratedProducts = activeProducts.filter(p => Number(p.rating) > 0);
+          const catalogAvgRating = ratedProducts.length > 0
+            ? (ratedProducts.reduce((acc, p) => acc + Number(p.rating), 0) / ratedProducts.length).toFixed(1)
+            : '0.0';
+          const totalCatalogReviews = activeProducts.reduce((acc, p) => acc + (Number(p.reviews || p.reviewsCount || 0)), 0);
+          const topRatedCatalogCount = activeProducts.filter(p => Number(p.rating || 0) >= 4.7).length;
 
           // Filter by search, status, and rating
           const filteredFeedbacks = allFeedbacks.filter((item) => {
@@ -4118,45 +4762,86 @@ export default function AdminPanel({
                     }}
                     onClick={() => setReviewViewMode('catalog')}
                   >
-                    ⭐ Catalog Ratings ({products.length})
+                    ⭐ Catalog Ratings ({activeProducts.length})
                   </button>
                 </div>
               </div>
 
-              {/* KPI CARDS */}
+              {/* KPI CARDS (Dynamically calculated based on active database mode) */}
               <div className="kpi-cards-grid" style={{ marginBottom: '24px', marginTop: '20px' }}>
-                <div className="kpi-card">
-                  <div className="kpi-icon-wrap brown">
-                    <Star size={22} />
-                  </div>
-                  <div className="kpi-data-wrap">
-                    <span className="kpi-number">{avgRating} / 5.0</span>
-                    <span className="kpi-label">Average Satisfaction</span>
-                  </div>
-                  <div className="kpi-growth-pill positive">★ {totalFeedbacks} Total Reviews</div>
-                </div>
+                {reviewViewMode === 'feedbacks' ? (
+                  <>
+                    <div className="kpi-card">
+                      <div className="kpi-icon-wrap brown">
+                        <Star size={22} />
+                      </div>
+                      <div className="kpi-data-wrap">
+                        <span className="kpi-number">{avgRating} / 5.0</span>
+                        <span className="kpi-label">Average Satisfaction</span>
+                      </div>
+                      <div className="kpi-growth-pill positive">★ {totalFeedbacks} Total Reviews</div>
+                    </div>
 
-                <div className="kpi-card">
-                  <div className="kpi-icon-wrap orange">
-                    <MessageSquare size={22} />
-                  </div>
-                  <div className="kpi-data-wrap">
-                    <span className="kpi-number">{newCount}</span>
-                    <span className="kpi-label">New / Pending Leads</span>
-                  </div>
-                  <div className="kpi-growth-pill" style={{ background: '#fef3c7', color: '#b45309' }}>Requires Follow-up</div>
-                </div>
+                    <div className="kpi-card">
+                      <div className="kpi-icon-wrap orange">
+                        <MessageSquare size={22} />
+                      </div>
+                      <div className="kpi-data-wrap">
+                        <span className="kpi-number">{newCount}</span>
+                        <span className="kpi-label">New / Pending Leads</span>
+                      </div>
+                      <div className="kpi-growth-pill" style={{ background: '#fef3c7', color: '#b45309' }}>
+                        {newCount > 0 ? 'Requires Follow-up' : 'All Leads Reviewed'}
+                      </div>
+                    </div>
 
-                <div className="kpi-card">
-                  <div className="kpi-icon-wrap green">
-                    <CheckCircle size={22} />
-                  </div>
-                  <div className="kpi-data-wrap">
-                    <span className="kpi-number">{contactedCount + resolvedCount}</span>
-                    <span className="kpi-label">Addressed &amp; Resolved</span>
-                  </div>
-                  <div className="kpi-growth-pill positive">100% Attended</div>
-                </div>
+                    <div className="kpi-card">
+                      <div className="kpi-icon-wrap green">
+                        <CheckCircle size={22} />
+                      </div>
+                      <div className="kpi-data-wrap">
+                        <span className="kpi-number">{contactedCount + resolvedCount}</span>
+                        <span className="kpi-label">Addressed &amp; Resolved</span>
+                      </div>
+                      <div className="kpi-growth-pill positive">{attendedPct}% Attended</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="kpi-card">
+                      <div className="kpi-icon-wrap brown">
+                        <Star size={22} />
+                      </div>
+                      <div className="kpi-data-wrap">
+                        <span className="kpi-number">{catalogAvgRating} / 5.0</span>
+                        <span className="kpi-label">Average Catalog Rating</span>
+                      </div>
+                      <div className="kpi-growth-pill positive">★ {totalCatalogReviews.toLocaleString('en-IN')} Total Reviews</div>
+                    </div>
+
+                    <div className="kpi-card">
+                      <div className="kpi-icon-wrap orange">
+                        <Sparkles size={22} />
+                      </div>
+                      <div className="kpi-data-wrap">
+                        <span className="kpi-number">{topRatedCatalogCount}</span>
+                        <span className="kpi-label">Top Rated Models (★ 4.7+)</span>
+                      </div>
+                      <div className="kpi-growth-pill" style={{ background: '#fef3c7', color: '#b45309' }}>Showroom Bestsellers</div>
+                    </div>
+
+                    <div className="kpi-card">
+                      <div className="kpi-icon-wrap green">
+                        <Package size={22} />
+                      </div>
+                      <div className="kpi-data-wrap">
+                        <span className="kpi-number">{totalCatalogProducts}</span>
+                        <span className="kpi-label">Live Catalog Products</span>
+                      </div>
+                      <div className="kpi-growth-pill positive">100% In Database</div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* MODE 1: CUSTOMER CONTACT FEEDBACK & REVIEWS */}
@@ -4505,8 +5190,8 @@ export default function AdminPanel({
                             </div>
                           </td>
                           <td><span className="category-pill-tag">{p.category}</span></td>
-                          <td><strong>★ {p.rating || '4.8'}</strong></td>
-                          <td><small>{p.reviews || p.reviewsCount || 12} Verified Reviews</small></td>
+                          <td><strong>{p.rating ? `★ ${p.rating}` : '—'}</strong></td>
+                          <td><small>{p.reviews || p.reviewsCount || 0} Verified Reviews</small></td>
                           <td>{p.badge ? <span className="badge-promo-pill">{p.badge}</span> : '—'}</td>
                           <td><span className="in-stock-badge">Published</span></td>
                         </tr>
@@ -4523,10 +5208,206 @@ export default function AdminPanel({
         {/* TAB: REPORTS */}
         {activeTab === 'reports' && (
           <div className="admin-subpage-card animate-fade-in">
-            <div className="subpage-header-row">
+            <div className="subpage-header-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', position: 'relative' }}>
               <div>
                 <h3>Executive Store Analytics &amp; Reports</h3>
                 <p>Live inventory valuation, sales breakdown, and performance metrics from Cloud Firestore.</p>
+              </div>
+
+              {/* Export Data Action Button & Dropdown */}
+              <div className="export-action-container" style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  id="export-data-btn"
+                  className="export-data-trigger-btn"
+                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                  disabled={isExporting}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 18px',
+                    background: 'linear-gradient(135deg, #8c3b10 0%, #b45309 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.88rem',
+                    cursor: isExporting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 14px rgba(140, 59, 16, 0.25)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {isExporting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Download size={16} />
+                  )}
+                  <span>{isExporting ? 'Exporting...' : 'Export Data'}</span>
+                  <ChevronDown size={15} style={{ transform: isExportMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isExportMenuOpen && (
+                  <div
+                    className="export-dropdown-popover"
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 'calc(100% + 8px)',
+                      background: '#ffffff',
+                      borderRadius: '12px',
+                      boxShadow: '0 12px 32px rgba(15, 23, 42, 0.16), 0 2px 6px rgba(0,0,0,0.06)',
+                      border: '1px solid #e2e8f0',
+                      width: '320px',
+                      zIndex: 1000,
+                      overflow: 'hidden'
+                    }}
+                  >
+                    <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '0.74rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, color: '#64748b' }}>
+                        Select Export Format
+                      </span>
+                      <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                        Exports all store data, orders, catalog &amp; customers
+                      </p>
+                    </div>
+
+                    <div style={{ padding: '6px' }}>
+                      {/* Option 1: Excel */}
+                      <button
+                        type="button"
+                        id="export-excel-opt"
+                        onClick={() => handleExportData('excel')}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 12px',
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '8px',
+                          background: '#dcfce7',
+                          color: '#15803d',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <FileSpreadsheet size={20} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0f172a' }}>
+                            Excel Spreadsheet (.xls)
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.25 }}>
+                            Multi-sheet: Summary, Orders, Products, Customers
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Option 2: PDF */}
+                      <button
+                        type="button"
+                        id="export-pdf-opt"
+                        onClick={() => handleExportData('pdf')}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 12px',
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#fef2f2'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '8px',
+                          background: '#fee2e2',
+                          color: '#b91c1c',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <FileText size={20} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0f172a' }}>
+                            Official PDF Document (.pdf)
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.25 }}>
+                            Print-ready executive report with letterhead &amp; seal
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Option 3: CSV */}
+                      <button
+                        type="button"
+                        id="export-csv-opt"
+                        onClick={() => handleExportData('csv')}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '10px 12px',
+                          background: 'none',
+                          border: 'none',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                      >
+                        <div style={{
+                          width: '38px',
+                          height: '38px',
+                          borderRadius: '8px',
+                          background: '#e0f2fe',
+                          color: '#0369a1',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0
+                        }}>
+                          <Download size={20} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: '0.86rem', color: '#0f172a' }}>
+                            CSV Master File (.csv)
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.25 }}>
+                            Universal raw data file for Google Sheets / Excel
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -4956,34 +5837,6 @@ export default function AdminPanel({
                   }}
                 >
                   <FileText size={16} /> Export Store Data (.JSON)
-                </button>
-
-                <button
-                  type="button"
-                  className="system-action-btn"
-                  onClick={async () => {
-                    if (window.confirm('Sync latest store configuration from Cloud Firestore?')) {
-                      const fresh = await getStoreSettings();
-                      setStoreSettings(fresh);
-                      setSiteContent(fresh);
-                      showToast('Synced from Cloud Firestore!');
-                    }
-                  }}
-                >
-                  <RefreshCw size={16} /> Sync Configuration from Firestore
-                </button>
-
-                <button
-                  type="button"
-                  className="system-action-btn danger"
-                  onClick={() => {
-                    if (window.confirm('Clear all local browser caches and reload live Firestore records?')) {
-                      localStorage.clear();
-                      window.location.reload();
-                    }
-                  }}
-                >
-                  <Trash2 size={16} /> Clear Local Cache &amp; Refresh
                 </button>
               </div>
             </div>
@@ -5542,6 +6395,9 @@ export default function AdminPanel({
                 const origPriceNum = newProduct.originalPrice ? parseFloat(newProduct.originalPrice) : Math.round(priceNum * 1.28);
                 const discountNum = Math.max(0, Math.round(((origPriceNum - priceNum) / (origPriceNum || 1)) * 100));
 
+                const primaryImg = newProduct.image || (newProduct.gallery && newProduct.gallery[0]) || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80';
+                const allGalleryImgs = Array.from(new Set([primaryImg, ...(newProduct.gallery || [])].filter(Boolean)));
+
                 const created = {
                   id: 'hk-' + (newProduct.category || 'prod').slice(0, 4) + '-' + Date.now().toString(36),
                   name: newProduct.name.trim(),
@@ -5556,8 +6412,10 @@ export default function AdminPanel({
                   discount: discountNum,
                   stock: newProduct.stock !== undefined && newProduct.stock !== '' ? Math.max(0, parseInt(newProduct.stock, 10)) : 10,
                   badge: (newProduct.badge || '').trim() || null,
-                  image: newProduct.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
-                  imageUrl: newProduct.image || 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+                  image: primaryImg,
+                  imageUrl: primaryImg,
+                  gallery: allGalleryImgs,
+                  images: allGalleryImgs,
                   description: (newProduct.description || '').trim() || 'Showroom verified premium addition to Sardar Mart Furniture and Home Appliances catalog.',
                   features: cleanFeatures,
                   additionalInformation: cleanAdditionalInfo,
@@ -5584,7 +6442,8 @@ export default function AdminPanel({
                     discount: '25',
                     stock: 15,
                     badge: 'BEST SELLER',
-                    image: 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80',
+                    image: '',
+                    gallery: [],
                     description: '',
                     featured: true,
                     features: [],
@@ -5744,13 +6603,13 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              {/* SECTION 3: PRODUCT IMAGE */}
+              {/* SECTION 3: PRODUCT IMAGES (MULTIPLE IMAGES SUPPORT) */}
               <div className="product-form-section">
                 <div className="product-section-title-wrap">
                   <span className="product-section-num">3</span>
                   <div>
-                    <h5 className="product-section-heading">Product Showcase Image</h5>
-                    <p className="product-section-sub">Upload a high-quality product photo or provide an image link.</p>
+                    <h5 className="product-section-heading">Product Images &amp; Gallery</h5>
+                    <p className="product-section-sub">Add the primary showcase photo plus multiple extra gallery angles / details.</p>
                   </div>
                 </div>
 
@@ -5758,7 +6617,73 @@ export default function AdminPanel({
                   <ProductImagePicker
                     value={newProduct.image}
                     onChange={(imgUrl) => setNewProduct(prev => ({ ...prev, image: imgUrl }))}
-                    label="Product Showcase Image"
+                    label="Primary Showcase Image"
+                    required={false}
+                  />
+                </div>
+
+                {/* Additional Gallery Images */}
+                <div className="form-field-group full-width" style={{ marginTop: '16px', borderTop: '1px dashed #e2e8f0', paddingTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>Additional Gallery Images (Add More Than 1 Image)</strong>
+                      <small style={{ display: 'block', color: '#64748b', fontSize: '0.74rem' }}>
+                        Add extra photos (angles, interior, details) to display in the product gallery.
+                      </small>
+                    </div>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: '12px' }}>
+                      {(newProduct.gallery || []).length} extra {(newProduct.gallery || []).length === 1 ? 'photo' : 'photos'}
+                    </span>
+                  </div>
+
+                  {/* Existing extra thumbnails */}
+                  {(newProduct.gallery || []).length > 0 && (
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                      {newProduct.gallery.map((imgUrl, gIdx) => (
+                        <div key={gIdx} style={{ position: 'relative', width: '70px', height: '70px', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid #cbd5e1' }}>
+                          <img src={imgUrl} alt={`Gallery ${gIdx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button
+                            type="button"
+                            onClick={() => setNewProduct(prev => ({
+                              ...prev,
+                              gallery: (prev.gallery || []).filter((_, i) => i !== gIdx)
+                            }))}
+                            style={{
+                              position: 'absolute',
+                              top: '2px',
+                              right: '2px',
+                              background: 'rgba(239, 68, 68, 0.9)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '18px',
+                              height: '18px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                            title="Remove photo"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add another image picker */}
+                  <ProductImagePicker
+                    value=""
+                    onChange={(imgUrl) => {
+                      if (imgUrl) {
+                        setNewProduct(prev => ({
+                          ...prev,
+                          gallery: [...(prev.gallery || []), imgUrl]
+                        }));
+                      }
+                    }}
+                    label="+ Add Another Photo to Gallery"
                     required={false}
                   />
                 </div>
@@ -5861,6 +6786,9 @@ export default function AdminPanel({
                   ? parseInt(editingProduct.discount)
                   : Math.max(0, Math.round(((origPriceNum - priceNum) / (origPriceNum || 1)) * 100));
 
+                const primaryImg = editingProduct.image || (editingProduct.gallery && editingProduct.gallery[0]) || '';
+                const allGalleryImgs = Array.from(new Set([primaryImg, ...(editingProduct.gallery || [])].filter(Boolean)));
+
                 const updated = {
                   ...editingProduct,
                   name: editingProduct.name.trim(),
@@ -5875,8 +6803,10 @@ export default function AdminPanel({
                   discount: discountNum,
                   stock: editingProduct.stock !== undefined && editingProduct.stock !== '' ? Math.max(0, parseInt(editingProduct.stock, 10)) : 10,
                   badge: (editingProduct.badge || '').trim() || null,
-                  image: editingProduct.image,
-                  imageUrl: editingProduct.image,
+                  image: primaryImg,
+                  imageUrl: primaryImg,
+                  gallery: allGalleryImgs,
+                  images: allGalleryImgs,
                   features: cleanFeatures,
                   additionalInformation: cleanAdditionalInfo
                 };
@@ -6042,13 +6972,13 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              {/* SECTION 3: PRODUCT IMAGE */}
+              {/* SECTION 3: PRODUCT IMAGES (MULTIPLE IMAGES SUPPORT) */}
               <div className="product-form-section">
                 <div className="product-section-title-wrap">
                   <span className="product-section-num">3</span>
                   <div>
-                    <h5 className="product-section-heading">Product Showcase Image</h5>
-                    <p className="product-section-sub">Change photo upload or update the image URL.</p>
+                    <h5 className="product-section-heading">Product Images &amp; Gallery</h5>
+                    <p className="product-section-sub">Update primary showcase photo plus multiple extra gallery angles / details.</p>
                   </div>
                 </div>
 
@@ -6056,7 +6986,73 @@ export default function AdminPanel({
                   <ProductImagePicker
                     value={editingProduct.image || ''}
                     onChange={(imgUrl) => setEditingProduct(prev => ({ ...prev, image: imgUrl }))}
-                    label="Update Product Image"
+                    label="Primary Showcase Image"
+                  />
+                </div>
+
+                {/* Additional Gallery Images */}
+                <div className="form-field-group full-width" style={{ marginTop: '16px', borderTop: '1px dashed #e2e8f0', paddingTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div>
+                      <strong style={{ fontSize: '0.88rem', color: '#0f172a' }}>Additional Gallery Images (Add More Than 1 Image)</strong>
+                      <small style={{ display: 'block', color: '#64748b', fontSize: '0.74rem' }}>
+                        Add extra photos (angles, interior, details) to display in the product gallery.
+                      </small>
+                    </div>
+                    <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '2px 8px', borderRadius: '12px' }}>
+                      {(editingProduct.gallery || []).length} extra {(editingProduct.gallery || []).length === 1 ? 'photo' : 'photos'}
+                    </span>
+                  </div>
+
+                  {/* Existing extra thumbnails */}
+                  {(editingProduct.gallery || []).length > 0 && (
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                      {editingProduct.gallery.map((imgUrl, gIdx) => (
+                        <div key={gIdx} style={{ position: 'relative', width: '70px', height: '70px', borderRadius: '8px', overflow: 'hidden', border: '1.5px solid #cbd5e1' }}>
+                          <img src={imgUrl} alt={`Gallery ${gIdx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <button
+                            type="button"
+                            onClick={() => setEditingProduct(prev => ({
+                              ...prev,
+                              gallery: (prev.gallery || []).filter((_, i) => i !== gIdx)
+                            }))}
+                            style={{
+                              position: 'absolute',
+                              top: '2px',
+                              right: '2px',
+                              background: 'rgba(239, 68, 68, 0.9)',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '50%',
+                              width: '18px',
+                              height: '18px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                            title="Remove photo"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add another image picker */}
+                  <ProductImagePicker
+                    value=""
+                    onChange={(imgUrl) => {
+                      if (imgUrl) {
+                        setEditingProduct(prev => ({
+                          ...prev,
+                          gallery: [...(prev.gallery || []), imgUrl]
+                        }));
+                      }
+                    }}
+                    label="+ Add Another Photo to Gallery"
+                    required={false}
                   />
                 </div>
               </div>
@@ -6757,6 +7753,691 @@ export default function AdminPanel({
         </div>
       )}
 
+      {/* MODAL: CUSTOMER PROFILE, LIFETIME SPEND & PURCHASED PRODUCTS */}
+      {selectedCustomer && (() => {
+        const cust = selectedCustomer;
+        const custInitial = (cust.name || 'C').charAt(0).toUpperCase();
+
+        // Gather all orders for this customer
+        const custOrders = orders.filter((o) => {
+          const oKey = o.customer?.phone || o.customer?.email || (o.customer?.name ? o.customer.name.toLowerCase() : null) || o.customerUid;
+          return oKey === cust.id || 
+                 (cust.phone && cust.phone !== '—' && o.customer?.phone === cust.phone) ||
+                 (cust.email && cust.email !== '—' && o.customer?.email === cust.email) ||
+                 (cust.name && o.customer?.name?.toLowerCase() === cust.name.toLowerCase());
+        });
+
+        // Gather all products bought by this customer across orders
+        const purchasedProducts = [];
+        custOrders.forEach((ord) => {
+          (ord.items || []).forEach((it) => {
+            const matchedCatalogProduct = activeProducts.find(p => p.id === it.id || (p.name && it.name && p.name.toLowerCase() === it.name.toLowerCase()));
+            purchasedProducts.push({
+              ...it,
+              image: it.image || it.imageUrl || matchedCatalogProduct?.image || matchedCatalogProduct?.imageUrl || '',
+              model: it.model || matchedCatalogProduct?.model || '',
+              category: it.category || matchedCatalogProduct?.category || '',
+              orderId: ord.id,
+              orderDate: ord.date || (ord.createdAt?.toDate ? ord.createdAt.toDate().toLocaleDateString('en-IN') : 'Recent'),
+              orderStatus: ord.status || 'Order Placed',
+              orderPayment: ord.paymentMethod || 'COD'
+            });
+          });
+        });
+
+        const isVip = cust.totalSpent >= 25000;
+        const avgOrderVal = cust.orderCount > 0 ? Math.round(cust.totalSpent / cust.orderCount) : 0;
+
+        return (
+          <div className="admin-modal-overlay" onClick={() => setSelectedCustomer(null)}>
+            <div 
+              className="admin-dialog-card customer-details-dialog" 
+              style={{ 
+                maxWidth: '820px', 
+                width: '100%', 
+                maxHeight: '92vh',
+                display: 'flex',
+                flexDirection: 'column',
+                borderRadius: '18px', 
+                overflow: 'hidden', 
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)',
+                background: '#ffffff',
+                margin: '20px auto'
+              }} 
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div 
+                className="dialog-header customer-modal-header" 
+                style={{ 
+                  padding: '18px 24px', 
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', 
+                  color: '#ffffff', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ 
+                    width: '46px', 
+                    height: '46px', 
+                    borderRadius: '12px', 
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)', 
+                    color: '#ffffff',
+                    fontSize: '1.3rem',
+                    fontWeight: 800,
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)'
+                  }}>
+                    {custInitial}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <h4 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>
+                        {cust.name}
+                      </h4>
+                      {isVip && (
+                        <span style={{ 
+                          background: 'linear-gradient(135deg, #f59e0b, #d97706)', 
+                          color: '#ffffff', 
+                          fontSize: '0.68rem', 
+                          fontWeight: 800, 
+                          padding: '2px 8px', 
+                          borderRadius: '10px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}>
+                          <Star size={11} fill="#ffffff" /> VIP Customer
+                        </span>
+                      )}
+                      <span style={{ 
+                        background: 'rgba(255, 255, 255, 0.15)', 
+                        color: '#93c5fd', 
+                        fontSize: '0.72rem', 
+                        fontWeight: 600, 
+                        padding: '2px 8px', 
+                        borderRadius: '10px' 
+                      }}>
+                        {cust.orderCount} {cust.orderCount === 1 ? 'Order' : 'Orders'}
+                      </span>
+                    </div>
+                    <small style={{ color: '#94a3b8', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                      <span><MapPin size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> {cust.city || 'Location N/A'}</span>
+                      <span>•</span>
+                      <span>Last active: {cust.lastOrder}</span>
+                    </small>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button 
+                    type="button" 
+                    className="dialog-close-btn" 
+                    onClick={() => setSelectedCustomer(null)}
+                    style={{ 
+                      background: 'rgba(255, 255, 255, 0.15)', 
+                      border: 'none', 
+                      color: '#ffffff', 
+                      width: '32px', 
+                      height: '32px', 
+                      borderRadius: '50%', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'center', 
+                      cursor: 'pointer' 
+                    }}
+                    title="Close"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Toolbar with "Select Option to Delete Customer" */}
+              <div style={{ 
+                background: '#f8fafc', 
+                borderBottom: '1px solid #e2e8f0', 
+                padding: '10px 24px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                flexWrap: 'wrap', 
+                gap: '10px',
+                flexShrink: 0
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                    Select Action:
+                  </label>
+                  <select
+                    className="customer-select-action-control"
+                    defaultValue=""
+                    onChange={(e) => {
+                      const act = e.target.value;
+                      if (act === 'delete') {
+                        handleDeleteCustomer(cust);
+                      } else if (act === 'call' && cust.phone && cust.phone !== '—') {
+                        window.location.href = `tel:${cust.phone}`;
+                      } else if (act === 'email' && cust.email && cust.email !== '—') {
+                        window.location.href = `mailto:${cust.email}`;
+                      }
+                      e.target.value = '';
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #cbd5e1',
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#1e293b',
+                      background: '#ffffff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="">⚙️ Choose Customer Action...</option>
+                    <option value="delete">🗑️ Delete Customer Profile &amp; Orders</option>
+                    {cust.phone && cust.phone !== '—' && (
+                      <option value="call">📞 Call Customer ({cust.phone})</option>
+                    )}
+                    {cust.email && cust.email !== '—' && (
+                      <option value="email">✉️ Send Email ({cust.email})</option>
+                    )}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {cust.phone && cust.phone !== '—' && (
+                    <a
+                      href={`tel:${cust.phone}`}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Phone size={13} color="#2563eb" /> Call
+                    </a>
+                  )}
+                  {cust.email && cust.email !== '—' && (
+                    <a
+                      href={`mailto:${cust.email}`}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        background: '#ffffff',
+                        color: '#0f172a',
+                        fontSize: '0.78rem',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Mail size={13} color="#2563eb" /> Email
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomer(cust)}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: '1px solid #fecaca',
+                      background: '#fef2f2',
+                      color: '#dc2626',
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                    title="Permanently delete this customer record"
+                  >
+                    <Trash2 size={13} /> Delete Customer
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Modal Body */}
+              <div 
+                className="customer-modal-scrollable-body" 
+                style={{ 
+                  flex: 1, 
+                  overflowY: 'auto', 
+                  padding: '20px 24px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '20px'
+                }}
+              >
+                {/* 1. SEPARATE CARD: LIFETIME SPEND & FINANCIAL METRICS */}
+                <div 
+                  className="customer-lifetime-spend-banner"
+                  style={{
+                    background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)',
+                    borderRadius: '16px',
+                    padding: '20px 24px',
+                    color: '#ffffff',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '16px',
+                    boxShadow: '0 8px 24px rgba(49, 46, 129, 0.25)'
+                  }}
+                >
+                  {/* Metric 1: Lifetime Spend Amount */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '52px',
+                      height: '52px',
+                      borderRadius: '14px',
+                      background: 'rgba(251, 191, 36, 0.2)',
+                      border: '1.5px solid rgba(251, 191, 36, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fbbf24',
+                      flexShrink: 0
+                    }}>
+                      <IndianRupee size={26} strokeWidth={2.5} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px', color: '#c7d2fe', display: 'block' }}>
+                        Lifetime Spend Amount
+                      </span>
+                      <div style={{ fontSize: '1.85rem', fontWeight: 900, color: '#ffffff', lineHeight: 1.1, margin: '2px 0 0' }}>
+                        {formatPrice(cust.totalSpent)}
+                      </div>
+                      <small style={{ color: '#a5b4fc', fontSize: '0.72rem' }}>
+                        Cumulative revenue across {cust.orderCount} order{cust.orderCount > 1 ? 's' : ''}
+                      </small>
+                    </div>
+                  </div>
+
+                  {/* Metric 2: Average Order Value */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderLeft: '1px solid rgba(255, 255, 255, 0.15)', paddingLeft: '16px' }}>
+                    <div style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '12px',
+                      background: 'rgba(56, 189, 248, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#38bdf8',
+                      flexShrink: 0
+                    }}>
+                      <TrendingUp size={22} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#c7d2fe', display: 'block' }}>
+                        Average Order Value
+                      </span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ffffff', margin: '2px 0 0' }}>
+                        {formatPrice(avgOrderVal)}
+                      </div>
+                      <small style={{ color: '#a5b4fc', fontSize: '0.72rem' }}>
+                        Per transaction average
+                      </small>
+                    </div>
+                  </div>
+
+                  {/* Metric 3: Total Orders Count */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', borderLeft: '1px solid rgba(255, 255, 255, 0.15)', paddingLeft: '16px' }}>
+                    <div style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '12px',
+                      background: 'rgba(74, 222, 128, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#4ade80',
+                      flexShrink: 0
+                    }}>
+                      <ShoppingBag size={22} />
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: '#c7d2fe', display: 'block' }}>
+                        Total Orders
+                      </span>
+                      <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#ffffff', margin: '2px 0 0' }}>
+                        {cust.orderCount} Orders
+                      </div>
+                      <small style={{ color: '#a5b4fc', fontSize: '0.72rem' }}>
+                        Last Order: {cust.lastOrder}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. CUSTOMER CONTACT & DELIVERY ADDRESS DETAILS */}
+                <div style={{ 
+                  background: '#f8fafc', 
+                  border: '1px solid #e2e8f0', 
+                  borderRadius: '14px', 
+                  padding: '16px 20px',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '14px'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>
+                      Primary Phone
+                    </span>
+                    <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <Phone size={13} color="#2563eb" /> {cust.phone}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>
+                      Email Address
+                    </span>
+                    <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <Mail size={13} color="#2563eb" /> {cust.email}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block' }}>
+                      Delivery Location &amp; Address
+                    </span>
+                    <div style={{ fontSize: '0.85rem', color: '#0f172a', marginTop: '2px' }}>
+                      <MapPin size={13} color="#ef4444" style={{ display: 'inline', marginRight: '4px' }} />
+                      <strong>{cust.city || 'Showroom Customer'}</strong>
+                      {cust.address && cust.address !== '—' && (
+                        <span style={{ color: '#64748b', display: 'block', fontSize: '0.76rem', marginTop: '2px' }}>
+                          {cust.address}{cust.pincode ? ` - ${cust.pincode}` : ''}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. SEPARATE LIST: PRODUCTS BOUGHT BY THIS CUSTOMER */}
+                <div className="customer-purchased-products-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ background: '#eff6ff', color: '#2563eb', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center' }}>
+                        <Package size={18} />
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                          Purchased Products ({purchasedProducts.length} items)
+                        </h4>
+                        <small style={{ color: '#64748b', fontSize: '0.74rem' }}>
+                          Itemized catalog of products bought across all {cust.orderCount} orders
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+
+                  {purchasedProducts.length === 0 ? (
+                    <div style={{ padding: '32px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                      <Package size={32} style={{ color: '#94a3b8', margin: '0 auto 8px', display: 'block' }} />
+                      <p style={{ margin: 0, fontSize: '0.88rem', color: '#64748b' }}>No product item details recorded for this customer.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {purchasedProducts.map((p, pIdx) => (
+                        <div 
+                          key={pIdx}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '12px 16px',
+                            background: '#ffffff',
+                            borderRadius: '12px',
+                            border: '1.5px solid #e2e8f0',
+                            gap: '14px',
+                            flexWrap: 'wrap',
+                            transition: 'border-color 0.15s ease'
+                          }}
+                        >
+                          {/* Image & Title */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '240px', flex: 1 }}>
+                            <div style={{
+                              width: '54px',
+                              height: '54px',
+                              borderRadius: '10px',
+                              overflow: 'hidden',
+                              background: '#f1f5f9',
+                              border: '1px solid #cbd5e1',
+                              flexShrink: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}>
+                              {p.image ? (
+                                <img 
+                                  src={p.image} 
+                                  alt={p.name || 'Product'} 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => { e.target.style.display = 'none'; }}
+                                />
+                              ) : (
+                                <Package size={20} color="#94a3b8" />
+                              )}
+                            </div>
+                            <div>
+                              <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'block', lineHeight: 1.25 }}>
+                                {p.name || p.title || 'Product'}
+                              </strong>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
+                                {p.model && (
+                                  <span style={{ fontSize: '0.7rem', color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                                    Model: {p.model}
+                                  </span>
+                                )}
+                                {p.category && (
+                                  <span style={{ fontSize: '0.68rem', color: '#0369a1', background: '#e0f2fe', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                                    {p.category}
+                                  </span>
+                                )}
+                                <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                  Order #{p.orderId} • {p.orderDate}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quantity, Unit Price & Total */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ 
+                                fontSize: '0.74rem', 
+                                fontWeight: 700, 
+                                background: '#f1f5f9', 
+                                color: '#334155', 
+                                padding: '3px 8px', 
+                                borderRadius: '6px' 
+                              }}>
+                                Qty: {p.quantity || 1}
+                              </span>
+                              <div style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '3px' }}>
+                                @ {formatPrice(p.price || 0)} each
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
+                                {formatPrice((Number(p.price) || 0) * (Number(p.quantity) || 1))}
+                              </div>
+                              <span style={{ 
+                                fontSize: '0.68rem', 
+                                fontWeight: 700, 
+                                color: (p.orderStatus || '').toLowerCase().includes('deliv') ? '#15803d' : '#854d0e',
+                                background: (p.orderStatus || '').toLowerCase().includes('deliv') ? '#dcfce7' : '#fef3c7',
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                display: 'inline-block',
+                                marginTop: '2px'
+                              }}>
+                                {p.orderStatus || 'Ordered'}
+                              </span>
+                            </div>
+
+                            {/* View Order Link */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const matchedOrder = orders.find(o => o.id === p.orderId);
+                                if (matchedOrder) {
+                                  setSelectedCustomer(null);
+                                  setSelectedOrderForDetails(matchedOrder);
+                                }
+                              }}
+                              style={{
+                                background: '#f8fafc',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                padding: '6px 10px',
+                                fontSize: '0.74rem',
+                                fontWeight: 600,
+                                color: '#2563eb',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="View this order details"
+                            >
+                              <ExternalLink size={12} /> Order
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 4. ORDERS HISTORY TABLE */}
+                <div className="customer-orders-history-section" style={{ marginTop: '8px' }}>
+                  <h4 style={{ margin: '0 0 10px', fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
+                    Order History ({custOrders.length} orders)
+                  </h4>
+                  <div className="admin-table-wrap" style={{ border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                    <table className="admin-table" style={{ margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th>Order ID</th>
+                          <th>Date</th>
+                          <th>Items</th>
+                          <th>Total Amount</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: 'center' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {custOrders.map((ord) => (
+                          <tr key={ord.id}>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>#{ord.id}</strong>
+                            </td>
+                            <td><small>{ord.date || 'Recent'}</small></td>
+                            <td>
+                              <span style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                {ord.items?.length || 1} {(ord.items?.length || 1) === 1 ? 'item' : 'items'}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ color: '#0f172a' }}>{formatPrice(ord.total)}</strong>
+                            </td>
+                            <td>
+                              <span style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 700,
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                background: ord.status === 'Delivered' ? '#dcfce7' : '#fef3c7',
+                                color: ord.status === 'Delivered' ? '#15803d' : '#854d0e'
+                              }}>
+                                {ord.status || 'Order Placed'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCustomer(null);
+                                  setSelectedOrderForDetails(ord);
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  borderRadius: '6px',
+                                  background: '#eff6ff',
+                                  border: '1px solid #bfdbfe',
+                                  color: '#1d4ed8',
+                                  fontSize: '0.74rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                View Order
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div 
+                style={{ 
+                  padding: '14px 24px', 
+                  background: '#f8fafc', 
+                  borderTop: '1px solid #e2e8f0', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <div style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Customer Profile &amp; Purchases aggregated from Cloud Firestore
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCustomer(null)}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      background: '#ffffff',
+                      color: '#475569',
+                      fontWeight: 600,
+                      fontSize: '0.84rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* MODAL: CREATE PROMO CODE */}
       {isAddPromoModalOpen && (
         <div className="admin-modal-overlay" onClick={() => setIsAddPromoModalOpen(false)}>
@@ -7313,18 +8994,14 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  {/* Category Image URL */}
-                  <div className="form-field-group" style={{ gridColumn: 'span 2' }}>
-                    <label style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                      Image URL *
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      placeholder="https://images.unsplash.com/..."
+                  {/* Category Image Picker (Local Device File / Drag & Drop / Device Camera) */}
+                  <div className="form-field-group full-width" style={{ gridColumn: 'span 2' }}>
+                    <ProductImagePicker
                       value={categoryForm.image}
-                      onChange={(e) => setCategoryForm({ ...categoryForm, image: e.target.value })}
-                      style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.95rem' }}
+                      onChange={(imgUrl) => setCategoryForm(prev => ({ ...prev, image: imgUrl }))}
+                      label="Category Image (Select from Computer / Phone)"
+                      required={false}
+                      folder="categories"
                     />
 
                     {/* Preset Image Options */}
@@ -8368,6 +10045,76 @@ export default function AdminPanel({
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+        }
+
+        /* Bulk Action Bar & Selection Styles */
+        .admin-bulk-action-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+          background: #eff6ff;
+          border: 1.5px solid #bfdbfe;
+          border-radius: 8px;
+          padding: 10px 16px;
+          margin-bottom: 16px;
+          animation: fadeIn 0.2s ease-in-out;
+        }
+        .admin-bulk-action-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.88rem;
+          font-weight: 600;
+          color: #1e40af;
+        }
+        .admin-bulk-action-buttons {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        .btn-bulk-select {
+          background: #ffffff;
+          border: 1px solid #93c5fd;
+          color: #1e40af;
+          padding: 6px 12px;
+          border-radius: 6px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .btn-bulk-select:hover {
+          background: #dbeafe;
+        }
+        .btn-bulk-delete {
+          background: #ef4444;
+          border: 1px solid #dc2626;
+          color: #ffffff;
+          padding: 6px 14px;
+          border-radius: 6px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: all 0.15s ease;
+        }
+        .btn-bulk-delete:hover {
+          background: #dc2626;
+          box-shadow: 0 2px 6px rgba(220, 38, 38, 0.3);
+        }
+        .admin-table tr.row-selected,
+        .order-table-row.row-selected {
+          background: #eff6ff !important;
+        }
+        .order-mobile-card.card-selected {
+          border-color: #3b82f6 !important;
+          background: #f8faff !important;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
         }
 
         /* Subpage Card Style */
@@ -10326,6 +12073,375 @@ export default function AdminPanel({
             align-items: stretch;
             gap: 8px;
           }
+        }
+
+        /* Product Count Metric Card */
+        .product-count-metric-card {
+          background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+          border: 1px solid #e2e8f0;
+          border-radius: 16px;
+          padding: 18px 24px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 16px;
+          box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+          margin-bottom: 20px;
+        }
+        .product-count-main-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+        .product-count-icon-halo {
+          width: 54px;
+          height: 54px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+          color: #2563eb;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+        }
+        .product-count-subtitle {
+          font-size: 0.8rem;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          color: #64748b;
+          display: block;
+          margin-bottom: 2px;
+        }
+        .product-count-digit {
+          font-size: 1.85rem;
+          font-weight: 800;
+          color: #0f172a;
+          line-height: 1.1;
+          margin: 0;
+          display: flex;
+          align-items: baseline;
+          gap: 6px;
+        }
+        .product-count-unit {
+          font-size: 0.95rem;
+          font-weight: 600;
+          color: #64748b;
+        }
+        .product-count-category-pills {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .prod-cat-stat-chip {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 999px;
+          padding: 6px 14px;
+          font-size: 0.82rem;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #475569;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        }
+        .prod-cat-stat-chip strong {
+          color: #0f172a;
+          font-weight: 700;
+        }
+        .prod-cat-stat-chip .dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+        }
+        .prod-cat-stat-chip .dot-furniture {
+          background: #3b82f6;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .prod-cat-stat-chip .dot-electronics {
+          background: #10b981;
+          box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+        }
+        .prod-cat-stat-chip .dot-appliances {
+          background: #f59e0b;
+          box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+        }
+
+        /* View Switcher */
+        .product-view-switcher {
+          display: inline-flex;
+          background: #f1f5f9;
+          padding: 3px;
+          border-radius: 10px;
+          border: 1px solid #e2e8f0;
+          gap: 3px;
+        }
+        .btn-view-pill {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 14px;
+          border: none;
+          background: transparent;
+          border-radius: 7px;
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: #64748b;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .btn-view-pill:hover {
+          color: #1e293b;
+          background: rgba(255, 255, 255, 0.6);
+        }
+        .btn-view-pill.active {
+          background: #ffffff;
+          color: #2563eb;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        }
+
+        /* Products Grid */
+        .admin-products-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 20px;
+          margin-top: 16px;
+        }
+        .admin-product-card {
+          background: #ffffff;
+          border-radius: 16px;
+          border: 1px solid #e2e8f0;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+          position: relative;
+        }
+        .admin-product-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 24px -6px rgba(15, 23, 42, 0.1);
+          border-color: #cbd5e1;
+        }
+        .admin-product-card.card-selected {
+          border-color: #3b82f6 !important;
+          background: #f8faff;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+        }
+        .admin-product-card-thumb {
+          height: 190px;
+          width: 100%;
+          position: relative;
+          background: #f8fafc;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .admin-product-card-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          transition: transform 0.35s ease;
+        }
+        .admin-product-card:hover .admin-product-card-thumb img {
+          transform: scale(1.05);
+        }
+        .admin-card-select-overlay {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          z-index: 2;
+          background: rgba(255, 255, 255, 0.9);
+          backdrop-filter: blur(4px);
+          border-radius: 8px;
+          padding: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .admin-card-select-overlay input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          accent-color: #2563eb;
+          margin: 0;
+        }
+        .admin-card-cat-badge {
+          position: absolute;
+          top: 10px;
+          right: 10px;
+          background: rgba(15, 23, 42, 0.8);
+          backdrop-filter: blur(4px);
+          color: #ffffff;
+          font-size: 0.68rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          padding: 4px 8px;
+          border-radius: 6px;
+        }
+        .admin-card-promo-badge {
+          position: absolute;
+          bottom: 10px;
+          left: 10px;
+          background: linear-gradient(135deg, #ef4444, #f97316);
+          color: #ffffff;
+          font-size: 0.65rem;
+          font-weight: 800;
+          padding: 3px 8px;
+          border-radius: 6px;
+          box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+        }
+        .admin-product-card-body {
+          padding: 14px 16px;
+          display: flex;
+          flex-direction: column;
+          flex-grow: 1;
+        }
+        .admin-card-header-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+        }
+        .admin-card-model-tag {
+          font-size: 0.72rem;
+          color: #64748b;
+          font-weight: 600;
+          font-family: monospace;
+          background: #f1f5f9;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .badge-in-stock-sm {
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: #15803d;
+          background: #dcfce7;
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+        .badge-low-stock-sm {
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: #b91c1c;
+          background: #fee2e2;
+          padding: 2px 8px;
+          border-radius: 999px;
+        }
+        .admin-product-card-title {
+          font-size: 0.95rem;
+          font-weight: 700;
+          color: #0f172a;
+          margin: 6px 0 2px;
+          line-height: 1.35;
+          overflow: hidden;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          min-height: 2.6em;
+        }
+        .admin-card-subcat-text {
+          font-size: 0.74rem;
+          color: #94a3b8;
+          margin-bottom: 8px;
+          font-weight: 500;
+        }
+        .admin-product-card-price-row {
+          display: flex;
+          align-items: baseline;
+          gap: 8px;
+          margin-top: auto;
+          padding-top: 10px;
+          border-top: 1px dashed #e2e8f0;
+        }
+        .card-current-price {
+          font-size: 1.22rem;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .card-mrp-price {
+          font-size: 0.82rem;
+          color: #94a3b8;
+          text-decoration: line-through;
+        }
+        .card-discount-pill {
+          font-size: 0.7rem;
+          font-weight: 700;
+          color: #16a34a;
+          background: #dcfce7;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .admin-product-card-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .btn-card-action {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          padding: 8px 10px;
+          border-radius: 8px;
+          font-size: 0.8rem;
+          font-weight: 600;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .btn-card-edit {
+          background: #f1f5f9;
+          color: #334155;
+          border-color: #e2e8f0;
+        }
+        .btn-card-edit:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+        .btn-card-del {
+          background: #fef2f2;
+          color: #ef4444;
+          border-color: #fee2e2;
+        }
+        .btn-card-del:hover {
+          background: #fee2e2;
+          color: #dc2626;
+        }
+
+        /* Customer Directory & Modal Styles */
+        .customer-table-row {
+          transition: background-color 0.15s ease;
+        }
+        .customer-table-row:hover {
+          background-color: #f8faff !important;
+        }
+        .btn-customer-name-link:hover {
+          text-decoration: underline !important;
+          color: #1e40af !important;
+        }
+        .customer-details-dialog {
+          animation: modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes modalPopIn {
+          from {
+            opacity: 0;
+            transform: scale(0.96) translateY(8px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        .customer-select-action-control:focus {
+          outline: 2px solid #3b82f6;
+          border-color: #3b82f6;
         }
 
         @media (max-width: 380px) {

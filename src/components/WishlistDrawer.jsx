@@ -7,7 +7,8 @@ export default function WishlistDrawer({
   wishlist = [], 
   onRemoveWishlist, 
   onAddToCart,
-  onSelectProduct 
+  onSelectProduct,
+  onNavigate 
 }) {
   if (!isOpen) return null;
 
@@ -77,6 +78,19 @@ export default function WishlistDrawer({
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div style={{ padding: '14px 16px', borderTop: '1px solid #f1f5f9', background: '#ffffff', display: 'flex', gap: '10px' }}>
+              <button
+                className="btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => {
+                  onClose();
+                  if (onNavigate) onNavigate('wishlist');
+                }}
+              >
+                View Full Wishlist Page →
+              </button>
             </div>
           </div>
         ) : (

@@ -26,17 +26,53 @@ export async function createEnquiry(enquiryData) {
 }
 
 /**
+ * Direct async fetch for enquiries from Firestore database
+ */
+export async function getEnquiriesAdmin() {
+  try {
+    const colRef = collection(db, ENQUIRIES_COLLECTION);
+    const snap = await getDocs(colRef);
+    const list = [];
+    snap.forEach((docSnap) => {
+      list.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    list.sort((a, b) => {
+      const timeA = a.createdAt?.seconds || 0;
+      const timeB = b.createdAt?.seconds || 0;
+      return timeB - timeA;
+    });
+    return list;
+  } catch (err) {
+    console.warn('Error fetching enquiries from Firestore:', err);
+    return [];
+  }
+}
+
+/**
  * Real-time listener for enquiries (Admin only)
  */
 export function subscribeToEnquiriesAdmin(onUpdate, onError) {
   try {
     const colRef = collection(db, ENQUIRIES_COLLECTION);
+
+    // Initial immediate fetch
+    getEnquiriesAdmin().then((initial) => {
+      if (Array.isArray(initial) && initial.length > 0) {
+        onUpdate(initial);
+      }
+    }).catch(() => {});
+
     return onSnapshot(
       colRef,
       (snapshot) => {
         const list = [];
         snapshot.forEach((docSnap) => {
           list.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        list.sort((a, b) => {
+          const timeA = a.createdAt?.seconds || 0;
+          const timeB = b.createdAt?.seconds || 0;
+          return timeB - timeA;
         });
         onUpdate(list);
       },

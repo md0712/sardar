@@ -156,19 +156,22 @@ export default function Furniture({
         <div className="catalog-toolbar">
           {/* Subcategory Dropdown for Mobile View */}
           <div className="subcat-mobile-dropdown-wrap">
-            <Layers size={15} className="subcat-dropdown-icon" />
-            <select
-              value={selectedSubcat}
-              onChange={(e) => setSelectedSubcat(e.target.value)}
-              className="subcat-mobile-select"
-              aria-label="Filter by furniture subcategory"
-            >
-              {subcategories.map(sub => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.label}
-                </option>
-              ))}
-            </select>
+            <span className="subcat-mobile-label">Category / Subcategory:</span>
+            <div className="subcat-select-shell">
+              <Layers size={16} className="subcat-dropdown-icon" />
+              <select
+                value={selectedSubcat}
+                onChange={(e) => setSelectedSubcat(e.target.value)}
+                className="subcat-mobile-select"
+                aria-label="Filter by furniture subcategory"
+              >
+                {subcategories.map(sub => (
+                  <option key={sub.id} value={sub.id}>
+                    {sub.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Subcategory Pills (Desktop) */}
@@ -312,6 +315,12 @@ export default function Furniture({
           gap: 8px;
           flex-wrap: wrap;
         }
+        .desktop-subcat-pills {
+          display: flex;
+        }
+        .subcat-mobile-dropdown-wrap {
+          display: none;
+        }
         .pill-btn {
           padding: 8px 16px;
           border-radius: var(--radius-full);
@@ -418,6 +427,53 @@ export default function Furniture({
           }
         }
         @media (max-width: 800px) {
+          .desktop-subcat-pills {
+            display: none !important;
+          }
+          .subcat-mobile-dropdown-wrap {
+            display: flex !important;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+          }
+          .subcat-mobile-label {
+            font-size: 0.76rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--color-primary);
+          }
+          .subcat-select-shell {
+            position: relative;
+            width: 100%;
+          }
+          .subcat-dropdown-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--color-primary);
+            pointer-events: none;
+            z-index: 2;
+          }
+          .subcat-mobile-select {
+            width: 100%;
+            padding: 11px 14px 11px 38px;
+            border-radius: 10px;
+            border: 1.5px solid var(--color-border);
+            background: #ffffff;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--color-text-main);
+            outline: none;
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+            box-sizing: border-box;
+          }
+          .subcat-mobile-select:focus {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(162, 78, 35, 0.15);
+          }
           .catalog-products-grid {
             grid-template-columns: repeat(2, 1fr);
             gap: 10px;
@@ -425,7 +481,8 @@ export default function Furniture({
           .catalog-toolbar {
             flex-direction: column;
             align-items: stretch;
-            padding: 12px;
+            padding: 14px;
+            gap: 12px;
           }
         }
         @media (max-width: 640px) {
@@ -439,34 +496,33 @@ export default function Furniture({
           .banner-sub {
             font-size: 0.82rem;
           }
-          .subcat-pills {
-            overflow-x: auto;
-            flex-wrap: nowrap;
-            padding-bottom: 6px;
-            scrollbar-width: none;
-            -webkit-overflow-scrolling: touch;
-          }
-          .subcat-pills::-webkit-scrollbar {
-            display: none;
-          }
-          .pill-btn {
-            white-space: nowrap;
-            padding: 6px 12px;
-            font-size: 0.78rem;
-          }
           .toolbar-controls {
             flex-direction: column;
             align-items: stretch;
             gap: 10px;
+            width: 100%;
           }
           .price-slider-control {
+            display: flex;
             justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-sizing: border-box;
           }
           .range-input {
             width: 140px;
           }
+          .sort-select-wrapper {
+            width: 100%;
+          }
           .sort-dropdown {
             width: 100%;
+            box-sizing: border-box;
+            padding: 10px 14px 10px 34px;
+            border-radius: 10px;
           }
           .catalog-products-grid {
             grid-template-columns: repeat(2, 1fr) !important;

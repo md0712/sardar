@@ -1,12 +1,11 @@
 import { 
   collection, 
   addDoc, 
+  getDocs,
   doc, 
   updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  query, 
-  orderBy, 
   serverTimestamp 
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -69,48 +68,59 @@ export async function createCustomerReview(reviewData) {
 }
 
 /**
- * Real-time listener for customer reviews & feedback (Admin only)
+ * Direct async fetch of customer reviews from Firestore database
+ */
+export async function getReviews() {
+  try {
+    const colRef = collection(db, REVIEWS_COLLECTION);
+    const snap = await getDocs(colRef);
+    const list = [];
+    snap.forEach((docSnap) => {
+      list.push({ id: docSnap.id, ...docSnap.data() });
+    });
+    list.sort((a, b) => {
+      const timeA = a.createdAt?.seconds || 0;
+      const timeB = b.createdAt?.seconds || 0;
+      return timeB - timeA;
+    });
+    return list;
+  } catch (err) {
+    console.warn('Error fetching reviews from Firestore:', err);
+    return [];
+  }
+}
+
+/**
+ * Real-time listener for customer reviews & feedback (Admin & Storefront)
  */
 export function subscribeToReviews(onUpdate, onError) {
   try {
     const colRef = collection(db, REVIEWS_COLLECTION);
-    const q = query(colRef, orderBy('createdAt', 'desc'));
+
+    // Initial immediate fetch to guarantee instant load from database
+    getReviews().then((initial) => {
+      if (Array.isArray(initial) && initial.length > 0) {
+        onUpdate(initial);
+      }
+    }).catch(() => {});
 
     return onSnapshot(
-      q,
+      colRef,
       (snapshot) => {
         const list = [];
         snapshot.forEach((docSnap) => {
           list.push({ id: docSnap.id, ...docSnap.data() });
         });
+        list.sort((a, b) => {
+          const timeA = a.createdAt?.seconds || 0;
+          const timeB = b.createdAt?.seconds || 0;
+          return timeB - timeA;
+        });
         onUpdate(list);
       },
       (error) => {
-        // Fallback without orderBy if composite index is pending
-        console.warn('Reviews orderBy listener notice, falling back to simple query:', error.message);
-        try {
-          return onSnapshot(
-            colRef,
-            (snap) => {
-              const list = [];
-              snap.forEach((docSnap) => {
-                list.push({ id: docSnap.id, ...docSnap.data() });
-              });
-              // Sort locally by date or createdAt
-              list.sort((a, b) => {
-                const timeA = a.createdAt?.seconds || 0;
-                const timeB = b.createdAt?.seconds || 0;
-                return timeB - timeA;
-              });
-              onUpdate(list);
-            },
-            (fallbackErr) => {
-              if (onError) onError(fallbackErr);
-            }
-          );
-        } catch (e) {
-          if (onError) onError(error);
-        }
+        console.warn('Real-time reviews listener notice:', error.message);
+        if (onError) onError(error);
       }
     );
   } catch (err) {

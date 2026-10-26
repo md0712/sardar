@@ -7,6 +7,7 @@ import {
   Banknote, Percent, Landmark, X, BadgePercent, Share2 
 } from 'lucide-react';
 import './Billing.css';
+import CustomChargeModal from '../components/CustomChargeModal';
 
 export default function Billing({ 
   cart = [], 
@@ -63,6 +64,7 @@ export default function Billing({
   const [specialNotes, setSpecialNotes] = useState('Showroom billing invoice with direct customer handover.');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
+  const [isCustomChargeModalOpen, setIsCustomChargeModalOpen] = useState(false);
 
   // Existing customers list strictly from actual customer orders in Firestore (no mock data)
   const existingCustomersList = useMemo(() => {
@@ -217,25 +219,14 @@ export default function Billing({
     if (onClearCart) onClearCart();
   };
 
-  // Add custom line item (Custom Item / Charge)
-  const handleAddCustomLineItem = () => {
-    const customName = window.prompt('Enter Custom Item or Service Name:', 'Custom Woodwork & Assembly');
-    if (!customName || !customName.trim()) return;
-    const priceStr = window.prompt('Enter Unit Price (₹):', '1500');
-    const customPrice = Math.max(0, Number(priceStr) || 0);
-    const customItem = {
-      id: `custom-${Date.now()}`,
-      name: customName.trim(),
-      price: customPrice,
-      quantity: 1,
-      image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=200&q=80',
-      category: 'services'
-    };
+  // Add custom line item from CustomChargeModal component (Replaces legacy window.prompt alert inputs)
+  const handleAddCustomChargeItem = (customItem) => {
+    if (!customItem) return;
     setBillItems(prev => [...prev, customItem]);
     if (onAddToCart) {
-      onAddToCart(customItem, 1);
+      onAddToCart(customItem, customItem.quantity || 1);
     } else if (onUpdateQuantity) {
-      onUpdateQuantity(customItem.id, 1);
+      onUpdateQuantity(customItem.id, customItem.quantity || 1);
     }
   };
 
@@ -650,7 +641,7 @@ export default function Billing({
               <button 
                 type="button" 
                 className="btn-pos-custom-charge"
-                onClick={handleAddCustomLineItem}
+                onClick={() => setIsCustomChargeModalOpen(true)}
                 title="Add custom line item (Carpentry, Polishing, Assembly, etc.)"
               >
                 <Plus size={12} />
@@ -1002,35 +993,23 @@ export default function Billing({
               </div>
             </div>
 
-            {/* Compact Payment Method Selection */}
+            {/* Payment Method Dropdown Selection */}
             <div className="pos-payment-methods-box compact-payment-box">
-              <label className="pos-field-label">PAYMENT METHOD:</label>
-              <div className="payment-options-3x2-grid compact-payment-grid">
-                {[
-                  { id: 'upi', label: 'UPI / QR', icon: Smartphone },
-                  { id: 'card', label: 'Card', icon: CreditCard },
-                  { id: 'cash', label: 'Cash', icon: Banknote },
-                  { id: 'emi', label: 'No-Cost EMI', icon: Percent },
-                  { id: 'netbanking', label: 'Net Banking', icon: Landmark },
-                  { id: 'cod', label: 'COD', icon: Truck }
-                ].map(opt => {
-                  const IconComponent = opt.icon;
-                  const isActive = paymentMethod === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      className={`pay-mode-btn compact-pay-btn ${isActive ? 'active' : ''}`}
-                      onClick={() => setPaymentMethod(opt.id)}
-                    >
-                      <span className="radio-circle-indicator small">
-                        {isActive && <span className="radio-dot-inner" />}
-                      </span>
-                      <IconComponent size={13} className="pay-mode-icon" />
-                      <span className="pay-mode-title">{opt.label}</span>
-                    </button>
-                  );
-                })}
+              <div className="pos-input-group">
+                <label className="pos-field-label">PAYMENT METHOD</label>
+                <select 
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="pos-select-input status-select compact-select payment-method-select"
+                  style={{ width: '100%', fontWeight: 700 }}
+                >
+                  <option value="upi">📱 UPI / QR (GPay, PhonePe, Paytm, QR Code)</option>
+                  <option value="card">💳 Credit / Debit Card (Visa, Mastercard, RuPay)</option>
+                  <option value="cash">💵 Cash (Handover at Counter)</option>
+                  <option value="emi">🏷️ 0% No-Cost EMI (Bajaj, HDB, Credit Card)</option>
+                  <option value="netbanking">🏛️ Net Banking (IMPS / NEFT / RTGS)</option>
+                  <option value="cod">🚚 Cash on Delivery (COD)</option>
+                </select>
               </div>
             </div>
 
@@ -1095,6 +1074,13 @@ export default function Billing({
           </div>
         </div>
       </div>
+
+      {/* Dedicated Custom Charge / Line Item Modal */}
+      <CustomChargeModal
+        isOpen={isCustomChargeModalOpen}
+        onClose={() => setIsCustomChargeModalOpen(false)}
+        onAddCharge={handleAddCustomChargeItem}
+      />
     </div>
   );
 }
