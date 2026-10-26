@@ -298,6 +298,7 @@ export default function Billing({
       subtotal,
       discount: Number(discountInput) || 0,
       delivery: Number(deliveryFeeInput) || 0,
+      gstRate: numGstRate,
       taxableAmount,
       cgst,
       sgst,
@@ -317,6 +318,21 @@ export default function Billing({
           await onPlaceOrder(newOrder);
         }
         if (onClearCart) onClearCart();
+
+        // Clear billing items, customer details, and pricing adjustments once process completes
+        setBillItems([]);
+        setFormData({
+          name: '',
+          phone: '',
+          address: '',
+          city: '',
+          pincode: '',
+          email: ''
+        });
+        setSelectedCustomerId('');
+        setDiscountInput(0);
+        setDeliveryFeeInput(0);
+        setSpecialNotes('Showroom billing invoice with direct customer handover.');
         setPlacedOrder(newOrder);
         setIsSubmitting(false);
 
@@ -959,7 +975,7 @@ export default function Billing({
               <div className="pos-price-row with-input-box compact-price-row">
                 <span className="price-label">
                   <Truck size={11} className="inline-icon" />
-                  Delivery &amp; Assembly:
+                  Delivery / Porter Charge (₹):
                 </span>
                 <div className="currency-input-wrap">
                   <span className="currency-symbol">₹</span>

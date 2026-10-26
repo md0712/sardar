@@ -15,7 +15,12 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
     total = 0,
     paymentMethod = 'UPI',
     paymentStatus = 'Paid',
-    status = 'Confirmed'
+    status = 'Confirmed',
+    gstRate: orderGstRate,
+    taxableAmount: orderTaxableAmount,
+    cgst: orderCgst,
+    sgst: orderSgst,
+    gstAmount: orderGstAmount
   } = order;
 
   const formatPrice = (val) => {
@@ -27,14 +32,65 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
   };
 
   const handlePrint = () => {
+    document.body.classList.add('invoice-printing-active');
     window.print();
   };
 
-  // Calculate approximate GST breakdown (18% GST included in selling price)
-  const taxableAmount = Math.round(total / 1.18);
-  const gstAmount = total - taxableAmount;
-  const cgst = Math.round(gstAmount / 2);
-  const sgst = gstAmount - cgst;
+  React.useEffect(() => {
+    const handleAfterPrint = () => {
+      document.body.classList.remove('invoice-printing-active');
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint);
+      document.body.classList.remove('invoice-printing-active');
+    };
+  }, []);
+
+  // Determine if GST is applied or 0%
+  // If order explicitly has gstRate: 0, or cgst: 0, or gstAmount: 0, or order comes from user page with 0% tax:
+  let effectiveGstRate = 0;
+  let taxableAmount = 0;
+  let cgst = 0;
+  let sgst = 0;
+  let gstAmount = 0;
+
+  if (orderGstRate !== undefined && Number(orderGstRate) > 0) {
+    effectiveGstRate = Number(orderGstRate);
+  } else if (orderGstAmount !== undefined && Number(orderGstAmount) > 0) {
+    const base = Number(orderTaxableAmount) || Math.max(1, Number(total) - Number(orderGstAmount));
+    effectiveGstRate = Math.round((Number(orderGstAmount) / base) * 100);
+  } else if (orderCgst !== undefined && Number(orderCgst) > 0) {
+    const totalGst = Number(orderCgst) * 2;
+    const base = Number(orderTaxableAmount) || Math.max(1, Number(total) - totalGst);
+    effectiveGstRate = Math.round((totalGst / base) * 100);
+  }
+
+  if (effectiveGstRate > 0) {
+    taxableAmount = orderTaxableAmount !== undefined 
+      ? Number(orderTaxableAmount) 
+      : Math.round(Number(total) / (1 + effectiveGstRate / 100));
+    gstAmount = orderGstAmount !== undefined 
+      ? Number(orderGstAmount) 
+      : (Number(total) - taxableAmount);
+    cgst = orderCgst !== undefined ? Number(orderCgst) : Math.round(gstAmount / 2);
+    sgst = orderSgst !== undefined ? Number(orderSgst) : (gstAmount - cgst);
+  } else {
+    // 0% GST (Zero-rated / no GST added, exact amount from user page)
+    effectiveGstRate = 0;
+    cgst = 0;
+    sgst = 0;
+    gstAmount = 0;
+    taxableAmount = orderTaxableAmount !== undefined 
+      ? Number(orderTaxableAmount) 
+      : Math.max(0, (Number(subtotal) || Number(total)) - (Number(discount) || 0));
+  }
+
+  const halfGstRate = effectiveGstRate > 0 ? (effectiveGstRate / 2) : 0;
+  const deliveryCharge = Number(order.delivery ?? order.deliveryFee ?? delivery ?? 0) || 0;
+  const computedInvoiceTotal = (total && Number(total) > 0 && (order.delivery !== undefined || deliveryCharge === 0))
+    ? Number(total)
+    : (Math.max(0, (Number(subtotal) || 0) - (Number(discount) || 0)) + deliveryCharge + (Number(gstAmount) || 0));
 
   return (
     <div className="invoice-modal-backdrop" onClick={onClose}>
@@ -131,10 +187,10 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
               </p>
             </div>
             <div className="party-box party-right">
-              <h4>Dispatch &amp; Warranty Node:</h4>
+              <h4>Dispatch &amp; Delivery Logistics:</h4>
               <p>
-                <strong>Chennai Central Fulfillment Hub</strong><br />
-                Doorstep Delivery &amp; Certified Installation<br />
+                <strong>{order.courier || 'Porter Platform Logistics'}</strong><br />
+                Doorstep Delivery &amp; Certified Handover<br />
                 Direct Manufacturer Warranty Active<br />
                 <strong>Dedicated Support:</strong> 1800-425-9988
               </p>
@@ -163,7 +219,7 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
                   </td>
                   <td style={{ textAlign: 'center' }}>{item.quantity}</td>
                   <td style={{ textAlign: 'right' }}>{formatPrice(item.price)}</td>
-                  <td style={{ textAlign: 'center' }}>18% Incl.</td>
+                  <td style={{ textAlign: 'center' }}>{effectiveGstRate > 0 ? `${effectiveGstRate}% Incl.` : '0%'}</td>
                   <td style={{ textAlign: 'right' }}><strong>{formatPrice(item.price * item.quantity)}</strong></td>
                 </tr>
               ))}
@@ -180,11 +236,11 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
                   <span>{formatPrice(taxableAmount)}</span>
                 </div>
                 <div className="tax-row">
-                  <span>CGST (9%):</span>
+                  <span>CGST ({halfGstRate}%):</span>
                   <span>{formatPrice(cgst)}</span>
                 </div>
                 <div className="tax-row">
-                  <span>SGST (9%):</span>
+                  <span>SGST ({halfGstRate}%):</span>
                   <span>{formatPrice(sgst)}</span>
                 </div>
                 <div className="tax-row">
@@ -206,15 +262,19 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
                 </div>
               )}
               <div className="calc-row">
-                <span>Standard Delivery &amp; Setup:</span>
-                <span className="free-tag">FREE (₹0)</span>
+                <span>Delivery Charge:</span>
+                <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                  {formatPrice(deliveryCharge)}
+                </span>
               </div>
               <div className="calc-row grand-total-calc">
                 <strong>Invoice Total:</strong>
-                <strong className="grand-price">{formatPrice(total)}</strong>
+                <strong className="grand-price">{formatPrice(computedInvoiceTotal)}</strong>
               </div>
               <div className="amount-in-words">
-                Inclusive of all applicable Indian Central &amp; State Taxes.
+                {effectiveGstRate > 0 
+                  ? 'Inclusive of all applicable Indian Central & State Taxes.' 
+                  : 'Zero-Rated / No GST Added (0% Tax).'}
               </div>
             </div>
           </div>
@@ -691,33 +751,215 @@ export default function InvoiceModal({ isOpen, onClose, order }) {
         }
 
         @media print {
-          body * {
-            visibility: hidden;
+          @page {
+            size: A4 portrait;
+            margin: 6mm 8mm;
           }
+
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: 100% !important;
+            overflow: visible !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* Hide ALL other elements completely from the layout flow to eliminate extra pages */
+          body > *:not(#root),
+          #root > *:not(.invoice-modal-backdrop):not(.app-root),
+          .admin-portal-wrapper,
+          .admin-login-layout,
+          .app-root > *:not(.invoice-modal-backdrop),
+          .navbar,
+          .footer,
+          .site-header,
+          .site-footer,
           .no-print {
             display: none !important;
-          }
-          .invoice-modal-backdrop {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            background: none !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
+            position: absolute !important;
+            top: -99999px !important;
+            left: -99999px !important;
+            visibility: hidden !important;
           }
-          .invoice-modal-container {
-            box-shadow: none !important;
-            max-width: 100% !important;
+
+          /* Unconstrain and natural flow for printable invoice modal */
+          .invoice-modal-backdrop {
+            position: static !important;
+            display: block !important;
             width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+            overflow: visible !important;
+            box-shadow: none !important;
+            border: none !important;
           }
-          #printable-invoice, #printable-invoice * {
-            visibility: visible;
+
+          .invoice-modal-container {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: #ffffff !important;
+            overflow: visible !important;
           }
-          #printable-invoice {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+
+          .invoice-sheet {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            padding: 2mm 2mm 0 2mm !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: #ffffff !important;
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          /* Compact styling for print to guarantee 1-page fit */
+          .invoice-header {
+            margin-bottom: 6px !important;
+          }
+          .invoice-brand-title {
+            font-size: 1.3rem !important;
+          }
+          .invoice-brand-sub {
+            font-size: 0.68rem !important;
+            margin-bottom: 2px !important;
+          }
+          .invoice-company-details {
+            font-size: 0.7rem !important;
+            line-height: 1.25 !important;
+          }
+          .invoice-title-stamp {
+            font-size: 1.15rem !important;
+            margin-bottom: 4px !important;
+          }
+          .meta-table td {
+            padding: 1px 4px !important;
+            font-size: 0.74rem !important;
+          }
+          .invoice-divider {
+            margin: 8px 0 !important;
+          }
+          .invoice-parties-row {
+            padding: 6px 10px !important;
+            margin-bottom: 8px !important;
+            gap: 12px !important;
+          }
+          .party-box h4 {
+            margin-bottom: 2px !important;
+            font-size: 0.7rem !important;
+          }
+          .customer-name {
+            font-size: 0.82rem !important;
+          }
+          .customer-address, .party-box p {
+            font-size: 0.7rem !important;
+            line-height: 1.25 !important;
+          }
+          .invoice-items-table {
+            margin-bottom: 8px !important;
+          }
+          .invoice-items-table th {
+            padding: 5px 6px !important;
+            font-size: 0.7rem !important;
+          }
+          .invoice-items-table td {
+            padding: 5px 6px !important;
+            font-size: 0.74rem !important;
+          }
+          .item-sub-sku {
+            font-size: 0.65rem !important;
+          }
+          .invoice-summary-row {
+            margin-bottom: 8px !important;
+            gap: 12px !important;
+          }
+          .tax-breakdown-box {
+            padding: 6px 10px !important;
+          }
+          .tax-breakdown-box h5 {
+            font-size: 0.7rem !important;
+            margin-bottom: 3px !important;
+          }
+          .tax-row {
+            font-size: 0.7rem !important;
+            margin-bottom: 2px !important;
+          }
+          .totals-box {
+            width: 260px !important;
+            padding: 8px 12px !important;
+          }
+          .calc-row {
+            font-size: 0.74rem !important;
+            margin-bottom: 2px !important;
+          }
+          .grand-total-calc {
+            margin-top: 4px !important;
+            padding-top: 4px !important;
+            font-size: 0.92rem !important;
+          }
+          .invoice-terms-row {
+            margin-top: 6px !important;
+            padding-top: 6px !important;
+            gap: 14px !important;
+          }
+          .terms-col h5 {
+            font-size: 0.7rem !important;
+            margin-bottom: 2px !important;
+          }
+          .terms-col ol {
+            font-size: 0.64rem !important;
+            line-height: 1.2 !important;
+            padding-left: 12px !important;
+            margin: 0 !important;
+          }
+          .signature-col {
+            width: 130px !important;
+          }
+          .signature-line {
+            height: 32px !important;
+            margin-bottom: 2px !important;
+          }
+          .seal-badge {
+            font-size: 0.58rem !important;
+            padding: 2px 6px !important;
+          }
+          .signature-col p {
+            font-size: 0.68rem !important;
+            margin: 0 !important;
+          }
+          .signature-col small {
+            font-size: 0.6rem !important;
+          }
+          .invoice-footer-note {
+            margin-top: 6px !important;
+            font-size: 0.62rem !important;
           }
         }
       `}</style>

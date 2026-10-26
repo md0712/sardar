@@ -18,9 +18,61 @@ export default function AdminModal({
   onUpdateOrderStatus, 
   onEditOrder, 
   onDeleteOrder, 
-  onViewInvoice 
+  onViewInvoice,
+  categories = []
 }) {
   const [activeTab, setActiveTab] = useState('orders'); // 'orders' | 'products' | 'add-product'
+
+  // Helper to get available subcategories from Categories page + showroom defaults
+  const getAvailableSubcategories = (dept) => {
+    const deptKey = (dept || '').toLowerCase().trim();
+    const fromCategories = (categories || [])
+      .filter((cat) => (cat.category || '').toLowerCase().trim() === deptKey)
+      .map((cat) => ({
+        id: cat.id || cat.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+        name: cat.name,
+        isCustom: true
+      }));
+
+    const defaults = {
+      furniture: [
+        { id: 'sofas', name: 'Sofas & Recliners' },
+        { id: 'beds', name: 'Beds & Mattresses' },
+        { id: 'dining', name: 'Dining Sets' },
+        { id: 'wardrobes', name: 'Wardrobes' },
+        { id: 'chairs', name: 'Chairs & Study Tables' }
+      ],
+      electronics: [
+        { id: 'tvs', name: 'Smart TVs & Audio' },
+        { id: 'soundbars', name: 'Soundbars & Speakers' },
+        { id: 'accessories', name: 'Electronic Accessories' }
+      ],
+      appliances: [
+        { id: 'refrigerator', name: 'Refrigerators' },
+        { id: 'washers', name: 'Washing Machines' },
+        { id: 'kitchen', name: 'Kitchen Appliances' },
+        { id: 'air-conditioners', name: 'Air Conditioners' },
+        { id: 'mixers', name: 'Mixer Grinders' },
+        { id: 'purifiers', name: 'Water Purifiers' }
+      ]
+    };
+
+    const fallbackList = defaults[deptKey] || [];
+    const combined = [...fromCategories];
+    const seen = new Set(fromCategories.map(c => (c.id || '').toLowerCase().replace(/s$/, '')));
+    const seenNames = new Set(fromCategories.map(c => (c.name || '').toLowerCase().replace(/s$/, '')));
+
+    fallbackList.forEach((item) => {
+      const idNorm = item.id.toLowerCase().replace(/s$/, '');
+      const nameNorm = item.name.toLowerCase().replace(/s$/, '');
+      if (!seen.has(idNorm) && !seenNames.has(nameNorm)) {
+        combined.push({ ...item, isCustom: false });
+        seen.add(idNorm);
+      }
+    });
+
+    return combined;
+  };
   
   // Orders Search & Filter
   const [orderSearch, setOrderSearch] = useState('');
@@ -94,7 +146,7 @@ export default function AdminModal({
     if (Array.isArray(prod.features)) {
       normalizedFeatures = prod.features.map(f => {
         if (typeof f === 'string') return { name: 'Specification', value: f };
-        if (f && typeof f === 'object') return { name: f.name || '', value: f.value || '' };
+        if (f && typeof f === 'object') return { name: f.name || '', value: f.value || '', ...(f.type ? { type: f.type } : {}) };
         return null;
       }).filter(Boolean);
     } else if (prod.specifications && typeof prod.specifications === 'object') {
@@ -133,7 +185,7 @@ export default function AdminModal({
     // Clean features
     const cleanFeatures = (newProductForm.features || [])
       .filter(f => f && (f.name.trim() || f.value.trim()))
-      .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+      .map(f => ({ name: f.name.trim(), value: f.value.trim(), ...(f.type ? { type: f.type } : {}) }));
 
     const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
     if (invalidFeature) {
@@ -162,7 +214,7 @@ export default function AdminModal({
       title: newProductForm.name.trim(),
       modelNumber: (newProductForm.modelNumber || '').trim(),
       category: newProductForm.category,
-      subcategory: newProductForm.subcategory,
+      subcategory: (newProductForm.subcategory || '').trim() || (newProductForm.category === 'appliances' ? 'refrigerator' : (newProductForm.category === 'electronics' ? 'tvs' : 'sofas')),
       price: priceNum,
       sellingPrice: priceNum,
       originalPrice: origPriceNum,
@@ -181,11 +233,12 @@ export default function AdminModal({
     if (onAddProduct) onAddProduct(createdProduct);
     triggerNotice(`Added "${createdProduct.name}" to catalog!`);
     setActiveTab('products');
+    const initSubs = getAvailableSubcategories('furniture');
     setNewProductForm({
       name: '',
       modelNumber: '',
       category: 'furniture',
-      subcategory: 'sofas',
+      subcategory: initSubs[0]?.id || 'sofas',
       price: '',
       originalPrice: '',
       discount: '25',
@@ -205,7 +258,7 @@ export default function AdminModal({
 
     const cleanFeatures = (editingProduct.features || [])
       .filter(f => f && (f.name.trim() || f.value.trim()))
-      .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+      .map(f => ({ name: f.name.trim(), value: f.value.trim(), ...(f.type ? { type: f.type } : {}) }));
 
     const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
     if (invalidFeature) {
@@ -234,6 +287,8 @@ export default function AdminModal({
       name: editingProduct.name.trim(),
       title: editingProduct.name.trim(),
       modelNumber: (editingProduct.modelNumber || '').trim(),
+      category: editingProduct.category,
+      subcategory: (editingProduct.subcategory || '').trim() || (editingProduct.category === 'appliances' ? 'refrigerator' : (editingProduct.category === 'electronics' ? 'tvs' : 'sofas')),
       price: priceNum,
       sellingPrice: priceNum,
       originalPrice: origPriceNum,
@@ -586,13 +641,39 @@ export default function AdminModal({
                         </select>
                       </div>
                       <div className="form-group">
-                        <label>Assigned Delivery Fleet</label>
+                        <label>Delivery Partner / Courier</label>
                         <input 
                           type="text" 
+                          placeholder="e.g. Porter Platform Delivery"
                           value={editingOrder.courier || ''} 
                           onChange={(e) => setEditingOrder(prev => ({ ...prev, courier: e.target.value }))}
                         />
                       </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Delivery Fee / Porter Charges (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 250 (0 if free/none)"
+                        value={editingOrder.delivery !== undefined ? editingOrder.delivery : (editingOrder.deliveryFee ?? 0)}
+                        onChange={(e) => {
+                          const newDelivery = Math.max(0, Number(e.target.value) || 0);
+                          const prevDelivery = Number(editingOrder.delivery ?? editingOrder.deliveryFee ?? 0);
+                          const currentTotal = Number(editingOrder.total) || 0;
+                          const adjustedTotal = Math.max(0, currentTotal - prevDelivery + newDelivery);
+                          setEditingOrder(prev => ({
+                            ...prev,
+                            delivery: newDelivery,
+                            deliveryFee: newDelivery,
+                            total: adjustedTotal
+                          }));
+                        }}
+                      />
+                      <small style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        If 0, bill prints ₹0 (not FREE). Updates order total.
+                      </small>
                     </div>
 
                     <div className="sub-modal-actions">
@@ -778,7 +859,15 @@ export default function AdminModal({
                         <label>Category *</label>
                         <select 
                           value={editingProduct.category}
-                          onChange={(e) => setEditingProduct(prev => ({ ...prev, category: e.target.value }))}
+                          onChange={(e) => {
+                            const nextCat = e.target.value;
+                            const available = getAvailableSubcategories(nextCat);
+                            setEditingProduct(prev => ({
+                              ...prev,
+                              category: nextCat,
+                              subcategory: available.length > 0 ? available[0].id : ''
+                            }));
+                          }}
                         >
                           <option value="furniture">Furniture</option>
                           <option value="electronics">Electronics</option>
@@ -786,12 +875,18 @@ export default function AdminModal({
                         </select>
                       </div>
                       <div className="form-group">
-                        <label>Subcategory Slug</label>
-                        <input 
-                          type="text" 
-                          value={editingProduct.subcategory || ''} 
+                        <label>Sub Category * (from Categories)</label>
+                        <select 
+                          value={editingProduct.subcategory || (getAvailableSubcategories(editingProduct.category)[0]?.id || '')} 
                           onChange={(e) => setEditingProduct(prev => ({ ...prev, subcategory: e.target.value }))}
-                        />
+                          required
+                        >
+                          {getAvailableSubcategories(editingProduct.category).map((sub) => (
+                            <option key={sub.id} value={sub.id}>
+                              {sub.name}{sub.isCustom ? ' ★ (Categories Page)' : ''}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
@@ -924,7 +1019,15 @@ export default function AdminModal({
                     <label>Department Category *</label>
                     <select 
                       value={newProductForm.category}
-                      onChange={(e) => setNewProductForm(prev => ({ ...prev, category: e.target.value }))}
+                      onChange={(e) => {
+                        const nextCat = e.target.value;
+                        const available = getAvailableSubcategories(nextCat);
+                        setNewProductForm(prev => ({
+                          ...prev,
+                          category: nextCat,
+                          subcategory: available.length > 0 ? available[0].id : ''
+                        }));
+                      }}
                     >
                       <option value="furniture">Furniture</option>
                       <option value="electronics">Electronics</option>
@@ -933,14 +1036,29 @@ export default function AdminModal({
                   </div>
 
                   <div className="form-group">
-                    <label>Promotional Badge</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. BEST SELLER or HOT DEAL"
-                      value={newProductForm.badge}
-                      onChange={(e) => setNewProductForm(prev => ({ ...prev, badge: e.target.value }))}
-                    />
+                    <label>Sub Category * (from Categories)</label>
+                    <select 
+                      value={newProductForm.subcategory || (getAvailableSubcategories(newProductForm.category)[0]?.id || '')}
+                      onChange={(e) => setNewProductForm(prev => ({ ...prev, subcategory: e.target.value }))}
+                      required
+                    >
+                      {getAvailableSubcategories(newProductForm.category).map((sub) => (
+                        <option key={sub.id} value={sub.id}>
+                          {sub.name}{sub.isCustom ? ' ★ (Categories Page)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Promotional Badge</label>
+                  <input 
+                    type="text"
+                    placeholder="e.g. BEST SELLER or HOT DEAL"
+                    value={newProductForm.badge}
+                    onChange={(e) => setNewProductForm(prev => ({ ...prev, badge: e.target.value }))}
+                  />
                 </div>
 
                 <div className="form-grid-2">

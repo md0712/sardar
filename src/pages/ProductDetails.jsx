@@ -17,7 +17,8 @@ export default function ProductDetails({
   cartItem,
   onUpdateQuantity,
   onRemoveFromCart,
-  onOpenCart
+  onOpenCart,
+  products = []
 }) {
   if (!product) return null;
 
@@ -136,9 +137,9 @@ export default function ProductDetails({
   };
 
   // Related products from same category
-  const relatedProducts = products
-    .filter(p => p.category === category && p.id !== id)
-    .slice(0, 3);
+  const relatedProducts = Array.isArray(products)
+    ? products.filter(p => p && p.category === category && p.id !== id).slice(0, 3)
+    : [];
 
   return (
     <div className="product-details-page">
@@ -281,19 +282,28 @@ export default function ProductDetails({
             {/* Key Features list */}
             {features.length > 0 && (
               <div className="features-bullet-list">
-                <h4>Key Highlights:</h4>
+                <h4>Key Product Features:</h4>
                 <ul>
-                  {features.map((feat, i) => {
-                    const text = typeof feat === 'string' 
-                      ? feat 
-                      : (feat && feat.name ? `${feat.name}: ${feat.value}` : '');
-                    if (!text) return null;
-                    return (
-                      <li key={i}>
-                        <span className="check-bullet">✓</span> {text}
-                      </li>
-                    );
-                  })}
+                  {(() => {
+                    const dedicatedFeatures = features.filter(f => f && (f.type === 'feature' || typeof f === 'string'));
+                    const listToDisplay = dedicatedFeatures.length > 0 ? dedicatedFeatures : features;
+                    return listToDisplay.map((feat, i) => {
+                      const isString = typeof feat === 'string';
+                      const name = isString ? '' : (feat.name || '');
+                      const val = isString ? feat : (feat.value || '');
+                      if (!name && !val) return null;
+                      return (
+                        <li key={i}>
+                          <span className="check-bullet">✓</span>{' '}
+                          {name && name.toLowerCase() !== 'feature' ? (
+                            <span><strong>{name}</strong>: {val}</span>
+                          ) : (
+                            <span>{val || name}</span>
+                          )}
+                        </li>
+                      );
+                    });
+                  })()}
                 </ul>
               </div>
             )}
@@ -408,16 +418,17 @@ export default function ProductDetails({
                     <td className="spec-val"><strong style={{ color: '#78350f' }}>{modelNumber}</strong></td>
                   </tr>
                 )}
-                {/* Dynamic Features array */}
-                {Array.isArray(features) && features.map((feat, idx) => {
-                  if (!feat || typeof feat !== 'object' || !feat.name) return null;
-                  return (
-                    <tr key={`feat-${idx}`} className={(idx + (modelNumber ? 1 : 0)) % 2 === 0 ? 'even-row' : ''}>
-                      <td className="spec-key">{feat.name}</td>
-                      <td className="spec-val">{feat.value || 'Yes'}</td>
-                    </tr>
-                  );
-                })}
+                {/* Dynamic Features / Model Specifications array */}
+                {Array.isArray(features) && features
+                  .filter(feat => feat && typeof feat === 'object' && feat.name && (feat.type !== 'feature' || !features.some(f => f && f.type === 'spec')))
+                  .map((feat, idx) => {
+                    return (
+                      <tr key={`feat-${idx}`} className={(idx + (modelNumber ? 1 : 0)) % 2 === 0 ? 'even-row' : ''}>
+                        <td className="spec-key">{feat.name}</td>
+                        <td className="spec-val">{feat.value || 'Yes'}</td>
+                      </tr>
+                    );
+                  })}
                 {/* Legacy specifications object */}
                 {specifications && typeof specifications === 'object' && !Array.isArray(specifications) && Object.entries(specifications).map(([key, value], idx) => (
                   <tr key={`spec-${idx}`} className={idx % 2 === 0 ? 'even-row' : ''}>
@@ -438,10 +449,10 @@ export default function ProductDetails({
           </div>
         </div>
 
-        {/* Additional Information Section (Custom Fields) */}
+        {/* Custom Fields Section */}
         {Array.isArray(additionalInformation) && additionalInformation.filter(item => item && item.name && item.name.trim()).length > 0 && (
           <div className="specifications-section additional-info-section" style={{ marginTop: '30px' }}>
-            <h3 className="section-title">Additional Information &amp; Services</h3>
+            <h3 className="section-title">Custom Fields &amp; Additional Specifications</h3>
             <div className="specs-table-wrapper">
               <table className="specs-table">
                 <tbody>

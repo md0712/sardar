@@ -38,6 +38,7 @@ import { updatePassword, updateProfile } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import ProductImagePicker from '../components/ProductImagePicker';
 import ProductSpecificationsEditor from '../components/ProductSpecificationsEditor';
+import { subscribeToProducts } from '../services/productService';
 import { 
   createPromoCode, 
   deletePromoCode, 
@@ -107,6 +108,19 @@ export default function AdminPanel({
 
   // Search in Admin
   const [adminGlobalSearch, setAdminGlobalSearch] = useState('');
+
+  // Live database products sync directly from Cloud Firestore
+  const [liveDbProducts, setLiveDbProducts] = useState(null);
+
+  useEffect(() => {
+    const unsub = subscribeToProducts((dbProducts) => {
+      setLiveDbProducts(dbProducts || []);
+    });
+    return () => unsub();
+  }, []);
+
+  // Use live database products if available, fallback to products prop
+  const activeProducts = liveDbProducts !== null ? liveDbProducts : (products || []);
 
   // Products Tab states
   const [productSearch, setProductSearch] = useState('');
@@ -185,7 +199,7 @@ export default function AdminPanel({
     if (Array.isArray(item.features)) {
       normalizedFeatures = item.features.map(f => {
         if (typeof f === 'string') return { name: 'Specification', value: f };
-        if (f && typeof f === 'object') return { name: f.name || '', value: f.value || '' };
+        if (f && typeof f === 'object') return { name: f.name || '', value: f.value || '', ...(f.type ? { type: f.type } : {}) };
         return null;
       }).filter(Boolean);
     } else if (item.specifications && typeof item.specifications === 'object') {
@@ -340,6 +354,64 @@ export default function AdminPanel({
     });
     return () => unsub();
   }, []);
+
+  // Helper to fetch subcategories for a department (e.g. appliances, furniture, electronics)
+  // Dynamically reads all categories created in the Categories tab (categoriesList) + showroom fallbacks
+  const getAvailableSubcategories = (dept) => {
+    const deptKey = (dept || '').toLowerCase().trim();
+    
+    // 1. Categories created from the Categories page for this department
+    const fromCategories = (categoriesList || [])
+      .filter((cat) => {
+        const catDept = (cat.category || '').toLowerCase().trim();
+        return catDept === deptKey;
+      })
+      .map((cat) => ({
+        id: cat.id || cat.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-'),
+        name: cat.name,
+        isCustom: true
+      }));
+
+    // 2. Standard department subcategories as reliable fallbacks
+    const defaults = {
+      furniture: [
+        { id: 'sofas', name: 'Sofas & Recliners' },
+        { id: 'beds', name: 'Beds & Mattresses' },
+        { id: 'dining', name: 'Dining Sets' },
+        { id: 'wardrobes', name: 'Wardrobes' },
+        { id: 'chairs', name: 'Chairs & Study Tables' }
+      ],
+      electronics: [
+        { id: 'tvs', name: 'Smart TVs & Audio' },
+        { id: 'soundbars', name: 'Soundbars & Speakers' },
+        { id: 'accessories', name: 'Electronic Accessories' }
+      ],
+      appliances: [
+        { id: 'refrigerator', name: 'Refrigerators' },
+        { id: 'washers', name: 'Washing Machines' },
+        { id: 'kitchen', name: 'Kitchen Appliances' },
+        { id: 'air-conditioners', name: 'Air Conditioners' },
+        { id: 'mixers', name: 'Mixer Grinders' },
+        { id: 'purifiers', name: 'Water Purifiers' }
+      ]
+    };
+
+    const fallbackList = defaults[deptKey] || [];
+    const combined = [...fromCategories];
+    const seen = new Set(fromCategories.map(c => (c.id || '').toLowerCase().replace(/s$/, '')));
+    const seenNames = new Set(fromCategories.map(c => (c.name || '').toLowerCase().replace(/s$/, '')));
+
+    fallbackList.forEach((item) => {
+      const idNorm = item.id.toLowerCase().replace(/s$/, '');
+      const nameNorm = item.name.toLowerCase().replace(/s$/, '');
+      if (!seen.has(idNorm) && !seenNames.has(nameNorm)) {
+        combined.push({ ...item, isCustom: false });
+        seen.add(idNorm);
+      }
+    });
+
+    return combined;
+  };
 
   const handleOpenAddCategory = () => {
     setEditingCategory(null);
@@ -724,21 +796,21 @@ export default function AdminPanel({
   };
 
   // Calculations for KPI Cards (Real live data directly from Firebase)
-  const totalProductsCount = products.length;
+  const totalProductsCount = activeProducts.length;
   const totalOrdersCount = orders.length;
   const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const totalEnquiriesCount = enquiries.length;
 
   // Products with stock < 5 trigger Low Stock Alert
-  const lowStockProducts = products.filter((p) => {
+  const lowStockProducts = activeProducts.filter((p) => {
     const s = p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 10;
     return s < 5;
   });
 
   // Real Category Analytics computed directly from live catalog
-  const furnitureProducts = products.filter((p) => p.category === 'furniture');
-  const electronicsProducts = products.filter((p) => p.category === 'electronics');
-  const appliancesProducts = products.filter((p) => p.category === 'appliances');
+  const furnitureProducts = activeProducts.filter((p) => p.category === 'furniture');
+  const electronicsProducts = activeProducts.filter((p) => p.category === 'electronics');
+  const appliancesProducts = activeProducts.filter((p) => p.category === 'appliances');
   const totalCategoryItems = Math.max(furnitureProducts.length + electronicsProducts.length + appliancesProducts.length, 1);
   const furniturePct = Math.round((furnitureProducts.length / totalCategoryItems) * 100);
   const electronicsPct = Math.round((electronicsProducts.length / totalCategoryItems) * 100);
@@ -876,7 +948,7 @@ export default function AdminPanel({
   });
 
   // Total Catalog Inventory Valuation
-  const totalCatalogInventoryValue = products.reduce((sum, p) => sum + ((Number(p.price) || 0) * (Number(p.stock) || 10)), 0);
+  const totalCatalogInventoryValue = activeProducts.reduce((sum, p) => sum + ((Number(p.price) || 0) * (Number(p.stock) || 10)), 0);
 
   const formatPrice = (val) => {
 
@@ -1762,7 +1834,7 @@ export default function AdminPanel({
               </button>
             </div>
 
-            {/* 6 Modern Metric KPI Cards (Exact Match to Mobile Reference UI) */}
+            {/* 6 Modern Metric KPI Cards (Strictly live data from Cloud Firestore database) */}
             <div className="kpi-cards-grid">
               {/* Card 1: Total Sales */}
               <div className="kpi-card modern-card">
@@ -1771,8 +1843,8 @@ export default function AdminPanel({
                 </div>
                 <div className="kpi-content-wrap">
                   <span className="kpi-label">Total Sales</span>
-                  <span className="kpi-number">{totalRevenue > 0 ? formatPrice(totalRevenue) : '₹3,22,646'}</span>
-                  <span className="kpi-subtext">{orders.length > 0 ? `${orders.length} invoices recorded` : '5 invoices recorded'}</span>
+                  <span className="kpi-number">{formatPrice(totalRevenue)}</span>
+                  <span className="kpi-subtext">{orders.length} {orders.length === 1 ? 'invoice' : 'invoices'} recorded</span>
                 </div>
               </div>
 
@@ -1783,8 +1855,8 @@ export default function AdminPanel({
                 </div>
                 <div className="kpi-content-wrap">
                   <span className="kpi-label">Total Purchases</span>
-                  <span className="kpi-number">28</span>
-                  <span className="kpi-subtext">5 purchase orders</span>
+                  <span className="kpi-number">0</span>
+                  <span className="kpi-subtext">0 purchase orders</span>
                 </div>
               </div>
 
@@ -1795,7 +1867,7 @@ export default function AdminPanel({
                 </div>
                 <div className="kpi-content-wrap">
                   <span className="kpi-label">Total Revenue</span>
-                  <span className="kpi-number">{totalRevenue > 0 ? formatPrice(totalRevenue) : '₹3,22,646'}</span>
+                  <span className="kpi-number">{formatPrice(totalRevenue)}</span>
                   <span className="kpi-subtext">Net settled revenue</span>
                 </div>
               </div>
@@ -1812,15 +1884,15 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              {/* Card 5: Total Products */}
+              {/* Card 5: Total Products (Directly synced with Firestore database) */}
               <div className="kpi-card modern-card">
                 <div className="kpi-icon-wrap purple">
                   <Package size={22} strokeWidth={2.2} />
                 </div>
                 <div className="kpi-content-wrap">
                   <span className="kpi-label">Total Products</span>
-                  <span className="kpi-number">{totalProductsCount || 18}</span>
-                  <span className="kpi-subtext">Active showroom catalog</span>
+                  <span className="kpi-number">{totalProductsCount}</span>
+                  <span className="kpi-subtext">{totalProductsCount > 0 ? 'Active showroom catalog' : 'No products in database'}</span>
                 </div>
               </div>
 
@@ -1831,8 +1903,8 @@ export default function AdminPanel({
                 </div>
                 <div className="kpi-content-wrap">
                   <span className="kpi-label">Enquiries</span>
-                  <span className="kpi-number">{totalEnquiriesCount || 48}</span>
-                  <span className="kpi-subtext">{enquiries.filter(e => e.status === 'New').length > 0 ? `${enquiries.filter(e => e.status === 'New').length} new leads today` : '2 new leads today'}</span>
+                  <span className="kpi-number">{totalEnquiriesCount}</span>
+                  <span className="kpi-subtext">{enquiries.filter(e => e.status === 'New').length} new leads today</span>
                 </div>
               </div>
             </div>
@@ -2319,7 +2391,7 @@ export default function AdminPanel({
                 </thead>
                 <tbody>
                   {(() => {
-                    const filtered = products.filter((p) => {
+                    const filtered = activeProducts.filter((p) => {
                       const matchCat = productCatFilter === 'all' || p.category === productCatFilter;
                       const q = productSearch.toLowerCase().trim();
                       const matchSearch = q === '' || 
@@ -2484,49 +2556,112 @@ export default function AdminPanel({
               const totalRevenueSum = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
 
               return (
-                <div className="orders-kpi-filter-strip">
-                  <button
-                    type="button"
-                    className={`order-kpi-pill ${orderStatusFilter === 'all' ? 'active' : ''}`}
+                <div className="orders-kpi-cards-grid">
+                  {/* Card 1: All Orders */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className={`kpi-card modern-card orders-kpi-card card-all ${orderStatusFilter === 'all' ? 'active-filter' : ''}`}
                     onClick={() => setOrderStatusFilter('all')}
+                    onKeyDown={(e) => e.key === 'Enter' && setOrderStatusFilter('all')}
                   >
-                    <span className="kpi-label">All Orders</span>
-                    <span className="kpi-count">{totalOrdersCount}</span>
-                  </button>
+                    <div className="orders-card-top-row">
+                      <div className="kpi-icon-wrap cyan">
+                        <ShoppingBag size={22} strokeWidth={2.2} />
+                      </div>
+                      {orderStatusFilter === 'all' && (
+                        <span className="kpi-status-badge cyan">Filtered</span>
+                      )}
+                    </div>
+                    <div className="kpi-content-wrap">
+                      <span className="kpi-label">All Orders</span>
+                      <span className="kpi-number">{totalOrdersCount}</span>
+                      <span className="kpi-subtext">Total store orders recorded</span>
+                    </div>
+                  </div>
 
-                  <button
-                    type="button"
-                    className={`order-kpi-pill kpi-in-progress ${orderStatusFilter === 'in_progress' ? 'active' : ''}`}
+                  {/* Card 2: In Progress */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className={`kpi-card modern-card orders-kpi-card card-progress ${orderStatusFilter === 'in_progress' ? 'active-filter' : ''}`}
                     onClick={() => setOrderStatusFilter(orderStatusFilter === 'in_progress' ? 'all' : 'in_progress')}
+                    onKeyDown={(e) => e.key === 'Enter' && setOrderStatusFilter(orderStatusFilter === 'in_progress' ? 'all' : 'in_progress')}
                   >
-                    <span className="kpi-dot in-progress"></span>
-                    <span className="kpi-label">In Progress</span>
-                    <span className="kpi-count">{inProgressCount}</span>
-                  </button>
+                    <div className="orders-card-top-row">
+                      <div className="kpi-icon-wrap amber">
+                        <Truck size={22} strokeWidth={2.2} />
+                      </div>
+                      {orderStatusFilter === 'in_progress' && (
+                        <span className="kpi-status-badge amber">Filtered</span>
+                      )}
+                    </div>
+                    <div className="kpi-content-wrap">
+                      <span className="kpi-label">In Progress</span>
+                      <span className="kpi-number">{inProgressCount}</span>
+                      <span className="kpi-subtext">Packed &amp; Out for delivery</span>
+                    </div>
+                  </div>
 
-                  <button
-                    type="button"
-                    className={`order-kpi-pill kpi-delivered ${orderStatusFilter === 'Delivered' ? 'active' : ''}`}
+                  {/* Card 3: Delivered */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className={`kpi-card modern-card orders-kpi-card card-delivered ${orderStatusFilter === 'Delivered' ? 'active-filter' : ''}`}
                     onClick={() => setOrderStatusFilter(orderStatusFilter === 'Delivered' ? 'all' : 'Delivered')}
+                    onKeyDown={(e) => e.key === 'Enter' && setOrderStatusFilter(orderStatusFilter === 'Delivered' ? 'all' : 'Delivered')}
                   >
-                    <span className="kpi-dot delivered"></span>
-                    <span className="kpi-label">Delivered</span>
-                    <span className="kpi-count">{deliveredCount}</span>
-                  </button>
+                    <div className="orders-card-top-row">
+                      <div className="kpi-icon-wrap green">
+                        <CheckCircle size={22} strokeWidth={2.2} />
+                      </div>
+                      {orderStatusFilter === 'Delivered' && (
+                        <span className="kpi-status-badge green">Filtered</span>
+                      )}
+                    </div>
+                    <div className="kpi-content-wrap">
+                      <span className="kpi-label">Delivered</span>
+                      <span className="kpi-number">{deliveredCount}</span>
+                      <span className="kpi-subtext">Successfully fulfilled</span>
+                    </div>
+                  </div>
 
-                  <button
-                    type="button"
-                    className={`order-kpi-pill kpi-cod-pending ${orderStatusFilter === 'cod_pending' ? 'active' : ''}`}
+                  {/* Card 4: COD / Pending */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className={`kpi-card modern-card orders-kpi-card card-pending ${orderStatusFilter === 'cod_pending' ? 'active-filter' : ''}`}
                     onClick={() => setOrderStatusFilter(orderStatusFilter === 'cod_pending' ? 'all' : 'cod_pending')}
+                    onKeyDown={(e) => e.key === 'Enter' && setOrderStatusFilter(orderStatusFilter === 'cod_pending' ? 'all' : 'cod_pending')}
                   >
-                    <span className="kpi-dot cod-pending"></span>
-                    <span className="kpi-label">COD / Pending</span>
-                    <span className="kpi-count">{codPendingCount}</span>
-                  </button>
+                    <div className="orders-card-top-row">
+                      <div className="kpi-icon-wrap rose">
+                        <CreditCard size={22} strokeWidth={2.2} />
+                      </div>
+                      {orderStatusFilter === 'cod_pending' && (
+                        <span className="kpi-status-badge rose">Filtered</span>
+                      )}
+                    </div>
+                    <div className="kpi-content-wrap">
+                      <span className="kpi-label">COD / Pending</span>
+                      <span className="kpi-number">{codPendingCount}</span>
+                      <span className="kpi-subtext">Awaiting payment settlement</span>
+                    </div>
+                  </div>
 
-                  <div className="order-kpi-revenue-box">
-                    <span className="kpi-revenue-label">Order Volume</span>
-                    <strong className="kpi-revenue-val">{formatPrice(totalRevenueSum)}</strong>
+                  {/* Card 5: Order Volume (Separate card) */}
+                  <div className="kpi-card modern-card orders-kpi-card card-volume">
+                    <div className="orders-card-top-row">
+                      <div className="kpi-icon-wrap purple">
+                        <TrendingUp size={22} strokeWidth={2.2} />
+                      </div>
+                      <span className="kpi-volume-pill">Gross Volume</span>
+                    </div>
+                    <div className="kpi-content-wrap">
+                      <span className="kpi-label">Order Volume</span>
+                      <span className="kpi-number">{formatPrice(totalRevenueSum)}</span>
+                      <span className="kpi-subtext">Cumulative order turnover</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -2718,9 +2853,16 @@ export default function AdminPanel({
                               {/* Total Amount */}
                               <td className="order-amount-cell">
                                 <div className="order-amount-val">{formatPrice(ord.total)}</div>
-                                <span className="order-items-count">
-                                  {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
-                                </span>
+                                <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <span className="order-items-count">
+                                    {itemsCount} {itemsCount === 1 ? 'item' : 'items'}
+                                  </span>
+                                  {Number(ord.delivery || ord.deliveryFee) > 0 && (
+                                    <span style={{ fontSize: '0.68rem', color: '#0369a1', background: '#e0f2fe', padding: '1px 5px', borderRadius: '4px', fontWeight: 700 }}>
+                                      Porter: +{formatPrice(ord.delivery || ord.deliveryFee)}
+                                    </span>
+                                  )}
+                                </div>
                               </td>
 
                               {/* Payment Mode & Settlement Badge */}
@@ -2978,7 +3120,7 @@ export default function AdminPanel({
         {activeTab === 'billing' && (
           <div className="admin-pos-billing-subpage animate-fade-in">
             <Billing
-              products={products}
+              products={activeProducts}
               cart={[]}
               customers={customerList}
               orders={orders}
@@ -3189,7 +3331,7 @@ export default function AdminPanel({
               <div style={{ background: '#f1f5f9', padding: '14px 16px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Live Products in Catalog</span>
                 <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#1e293b', marginTop: '2px' }}>
-                  {products.length}
+                  {activeProducts.length}
                 </div>
               </div>
             </div>
@@ -4351,7 +4493,7 @@ export default function AdminPanel({
                       </tr>
                     </thead>
                     <tbody>
-                      {products.map((p) => (
+                      {activeProducts.map((p) => (
                         <tr key={p.id}>
                           <td>
                             <div className="product-table-item-cell">
@@ -5376,7 +5518,7 @@ export default function AdminPanel({
                 const rawFeatures = newProduct.features || [];
                 const cleanFeatures = rawFeatures
                   .filter(f => f && (f.name.trim() || f.value.trim()))
-                  .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+                  .map(f => ({ name: f.name.trim(), value: f.value.trim(), ...(f.type ? { type: f.type } : {}) }));
 
                 const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
                 if (invalidFeature) {
@@ -5406,7 +5548,7 @@ export default function AdminPanel({
                   title: newProduct.name.trim(),
                   modelNumber: (newProduct.modelNumber || '').trim(),
                   category: newProduct.category || 'furniture',
-                  subcategory: newProduct.subcategory || (newProduct.category === 'electronics' ? 'tvs' : 'sofas'),
+                  subcategory: (newProduct.subcategory || '').trim() || (newProduct.category === 'appliances' ? 'refrigerator' : (newProduct.category === 'electronics' ? 'tvs' : 'sofas')),
                   price: priceNum,
                   sellingPrice: priceNum,
                   originalPrice: origPriceNum,
@@ -5431,11 +5573,12 @@ export default function AdminPanel({
                   }
                   setIsAddProductModalOpen(false);
                   showToast(`Product "${created.name}" published to catalog!`);
+                  const initialSubs = getAvailableSubcategories('furniture');
                   setNewProduct({
                     name: '',
                     modelNumber: '',
                     category: 'furniture',
-                    subcategory: 'sofas',
+                    subcategory: initialSubs.length > 0 ? initialSubs[0].id : 'sofas',
                     price: '',
                     originalPrice: '',
                     discount: '25',
@@ -5493,15 +5636,43 @@ export default function AdminPanel({
                   </div>
 
                   <div className="form-field-group">
-                    <label>Department Category</label>
+                    <label>Department Category *</label>
                     <select
                       value={newProduct.category}
-                      onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
+                      onChange={(e) => {
+                        const nextCat = e.target.value;
+                        const available = getAvailableSubcategories(nextCat);
+                        setNewProduct({
+                          ...newProduct,
+                          category: nextCat,
+                          subcategory: available.length > 0 ? available[0].id : ''
+                        });
+                      }}
                     >
                       <option value="furniture">Furniture</option>
                       <option value="electronics">Electronics</option>
                       <option value="appliances">Home Appliances</option>
                     </select>
+                  </div>
+
+                  <div className="form-field-group">
+                    <label>
+                      Sub Category * <span style={{ fontWeight: 400, color: '#64748b' }}>(e.g. Sofa, Refrigerator)</span>
+                    </label>
+                    <select
+                      value={newProduct.subcategory || (getAvailableSubcategories(newProduct.category)[0]?.id || '')}
+                      onChange={(e) => setNewProduct({ ...newProduct, subcategory: e.target.value })}
+                      required
+                    >
+                      {getAvailableSubcategories(newProduct.category).map((sub) => (
+                        <option key={sub.id} value={sub.id}>
+                          {sub.name}{sub.isCustom ? ' ★ (Categories Page)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <small style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>
+                      Populated dynamically from categories created in the Categories tab.
+                    </small>
                   </div>
 
                   <div className="form-field-group full-width">
@@ -5664,7 +5835,7 @@ export default function AdminPanel({
                 const rawFeatures = editingProduct.features || [];
                 const cleanFeatures = rawFeatures
                   .filter(f => f && (f.name.trim() || f.value.trim()))
-                  .map(f => ({ name: f.name.trim(), value: f.value.trim() }));
+                  .map(f => ({ name: f.name.trim(), value: f.value.trim(), ...(f.type ? { type: f.type } : {}) }));
 
                 const invalidFeature = cleanFeatures.find(f => !f.name || !f.value);
                 if (invalidFeature) {
@@ -5696,6 +5867,7 @@ export default function AdminPanel({
                   title: editingProduct.name.trim(),
                   modelNumber: (editingProduct.modelNumber || '').trim(),
                   category: editingProduct.category,
+                  subcategory: (editingProduct.subcategory || '').trim() || (editingProduct.category === 'appliances' ? 'refrigerator' : (editingProduct.category === 'electronics' ? 'tvs' : 'sofas')),
                   price: priceNum,
                   sellingPrice: priceNum,
                   originalPrice: origPriceNum,
@@ -5758,15 +5930,43 @@ export default function AdminPanel({
                   </div>
 
                   <div className="form-field-group">
-                    <label>Department Category</label>
+                    <label>Department Category *</label>
                     <select
                       value={editingProduct.category}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                      onChange={(e) => {
+                        const nextCat = e.target.value;
+                        const available = getAvailableSubcategories(nextCat);
+                        setEditingProduct({
+                          ...editingProduct,
+                          category: nextCat,
+                          subcategory: available.length > 0 ? available[0].id : ''
+                        });
+                      }}
                     >
                       <option value="furniture">Furniture</option>
                       <option value="electronics">Electronics</option>
                       <option value="appliances">Home Appliances</option>
                     </select>
+                  </div>
+
+                  <div className="form-field-group">
+                    <label>
+                      Sub Category * <span style={{ fontWeight: 400, color: '#64748b' }}>(e.g. Sofa, Refrigerator)</span>
+                    </label>
+                    <select
+                      value={editingProduct.subcategory || (getAvailableSubcategories(editingProduct.category)[0]?.id || '')}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, subcategory: e.target.value })}
+                      required
+                    >
+                      {getAvailableSubcategories(editingProduct.category).map((sub) => (
+                        <option key={sub.id} value={sub.id}>
+                          {sub.name}{sub.isCustom ? ' ★ (Categories Page)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <small style={{ fontSize: '0.74rem', color: '#64748b', marginTop: '2px' }}>
+                      Populated dynamically from categories created in the Categories tab.
+                    </small>
                   </div>
 
                   <div className="form-field-group full-width">
@@ -5978,6 +6178,70 @@ export default function AdminPanel({
                       customer: { ...editingOrder.customer, pincode: e.target.value }
                     })}
                   />
+                </div>
+
+                {/* Porter Platform Delivery & Shipping Charges Section */}
+                <div className="form-field-group full-width order-porter-delivery-card" style={{
+                  background: '#f8fafc',
+                  border: '1.5px solid #cbd5e1',
+                  borderRadius: '12px',
+                  padding: '14px 16px',
+                  margin: '8px 0'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '0.88rem', color: '#0f172a' }}>
+                        🚚 Porter Delivery Platform Charges (Added by Shopkeeper)
+                      </strong>
+                      <span style={{ fontSize: '0.74rem', color: '#64748b' }}>
+                        For online orders sent via Porter, enter the delivery fee charged to the customer. If 0, bill prints ₹0.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="dialog-grid">
+                    <div className="form-field-group">
+                      <label style={{ fontWeight: 700, color: '#0f172a' }}>Delivery Fee / Porter Charge (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 250 (0 if none)"
+                        value={editingOrder.delivery !== undefined ? editingOrder.delivery : (editingOrder.deliveryFee ?? 0)}
+                        onChange={(e) => {
+                          const newDelivery = Math.max(0, Number(e.target.value) || 0);
+                          const prevDelivery = Number(editingOrder.delivery ?? editingOrder.deliveryFee ?? 0);
+                          const currentTotal = Number(editingOrder.total) || 0;
+                          const adjustedTotal = Math.max(0, currentTotal - prevDelivery + newDelivery);
+                          setEditingOrder({
+                            ...editingOrder,
+                            delivery: newDelivery,
+                            deliveryFee: newDelivery,
+                            total: adjustedTotal
+                          });
+                        }}
+                        style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}
+                      />
+                      <small style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                        Updates order total and bill: {formatPrice(editingOrder.delivery || 0)}
+                      </small>
+                    </div>
+
+                    <div className="form-field-group">
+                      <label style={{ fontWeight: 700, color: '#0f172a' }}>Delivery Partner / Courier</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Porter Platform Delivery"
+                        value={editingOrder.courier || 'Porter Platform Delivery'}
+                        onChange={(e) => setEditingOrder({
+                          ...editingOrder,
+                          courier: e.target.value
+                        })}
+                      />
+                      <small style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                        Printed on invoice logistics section
+                      </small>
+                    </div>
+                  </div>
                 </div>
 
                 {/* COD & Payment Status Updation Section */}
@@ -8326,85 +8590,157 @@ export default function AdminPanel({
           background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
         }
 
-        /* KPI Quick-Filter Strip */
-        .orders-kpi-filter-strip {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          flex-wrap: wrap;
-          margin-bottom: 20px;
-          padding: 12px 14px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 14px;
+        /* Orders Executive Dashboard KPI Cards Grid */
+        .orders-kpi-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 16px;
+          margin-bottom: 24px;
         }
-        .order-kpi-pill {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          background: #ffffff;
-          border: 1.5px solid #e2e8f0;
-          padding: 7px 14px;
-          border-radius: 10px;
-          font-size: 0.82rem;
-          font-weight: 600;
-          color: #475569;
+        .orders-kpi-card {
           cursor: pointer;
-          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .order-kpi-pill:hover {
-          border-color: #cbd5e1;
-          background: #f1f5f9;
-          transform: translateY(-1px);
-        }
-        .order-kpi-pill.active {
-          background: #0f172a;
-          border-color: #0f172a;
-          color: #ffffff;
-          box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
-        }
-        .order-kpi-pill .kpi-count {
-          background: #f1f5f9;
-          color: #0f172a;
-          font-size: 0.72rem;
-          font-weight: 800;
-          padding: 2px 7px;
-          border-radius: 9999px;
-        }
-        .order-kpi-pill.active .kpi-count {
-          background: rgba(255, 255, 255, 0.2);
-          color: #ffffff;
-        }
-        .kpi-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          display: inline-block;
-        }
-        .kpi-dot.in-progress { background: #3b82f6; box-shadow: 0 0 6px rgba(59, 130, 246, 0.5); }
-        .kpi-dot.delivered { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
-        .kpi-dot.cod-pending { background: #f59e0b; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }
-
-        .order-kpi-revenue-box {
-          margin-left: auto;
+          user-select: none;
+          position: relative;
+          overflow: hidden;
+          background: #ffffff;
+          border: 1px solid #edf2f7;
+          border-radius: 20px;
+          padding: 18px;
           display: flex;
           flex-direction: column;
-          align-items: flex-end;
-          padding-left: 12px;
-          border-left: 1px solid #cbd5e1;
+          align-items: flex-start;
+          gap: 10px;
+          box-shadow: 0 4px 18px rgba(15, 23, 42, 0.03);
+          transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
         }
-        .kpi-revenue-label {
-          font-size: 0.68rem;
-          text-transform: uppercase;
-          font-weight: 700;
+        .orders-kpi-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+          border-color: #cbd5e1;
+        }
+        .orders-card-top-row {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 2px;
+        }
+        .orders-kpi-card .kpi-icon-wrap {
+          width: 44px;
+          height: 44px;
+          border-radius: 13px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .orders-kpi-card .kpi-content-wrap {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          width: 100%;
+        }
+        .orders-kpi-card .kpi-label {
+          font-size: 0.82rem;
           color: #64748b;
-          letter-spacing: 0.3px;
+          font-weight: 600;
         }
-        .kpi-revenue-val {
-          font-size: 1.05rem;
-          font-weight: 900;
+        .orders-kpi-card .kpi-number {
+          font-size: 1.55rem;
+          font-weight: 800;
           color: #0f172a;
-          letter-spacing: -0.3px;
+          line-height: 1.15;
+          letter-spacing: -0.02em;
+        }
+        .orders-kpi-card .kpi-subtext {
+          font-size: 0.74rem;
+          color: #94a3b8;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* Active Filter States */
+        .orders-kpi-card.active-filter {
+          border-color: #0f172a;
+          box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+        }
+        .orders-kpi-card.active-filter::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3.5px;
+          background: #0f172a;
+        }
+        .orders-kpi-card.card-all.active-filter::after { background: #0284c7; }
+        .orders-kpi-card.card-progress.active-filter::after { background: #d97706; }
+        .orders-kpi-card.card-delivered.active-filter::after { background: #16a34a; }
+        .orders-kpi-card.card-pending.active-filter::after { background: #e11d48; }
+
+        .kpi-status-badge {
+          font-size: 0.68rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          background: #e0f2fe;
+          color: #0369a1;
+          letter-spacing: 0.02em;
+        }
+        .kpi-status-badge.amber { background: #fef3c7; color: #b45309; }
+        .kpi-status-badge.green { background: #dcfce7; color: #15803d; }
+        .kpi-status-badge.rose { background: #ffe4e6; color: #be123c; }
+
+        /* Dedicated Separate Order Volume Card */
+        .orders-kpi-card.card-volume {
+          cursor: default;
+          background: linear-gradient(145deg, #ffffff 0%, #faf5ff 100%);
+          border-color: #e9d5ff;
+          box-shadow: 0 4px 18px rgba(147, 51, 234, 0.05);
+        }
+        .orders-kpi-card.card-volume:hover {
+          transform: translateY(-2px);
+          border-color: #d8b4fe;
+          box-shadow: 0 8px 24px rgba(147, 51, 234, 0.1);
+        }
+        .orders-kpi-card.card-volume .kpi-number {
+          color: #6b21a8;
+          font-weight: 900;
+        }
+        .kpi-volume-pill {
+          font-size: 0.68rem;
+          font-weight: 700;
+          padding: 2px 8px;
+          border-radius: 9999px;
+          background: #f3e8ff;
+          color: #7e22ce;
+        }
+
+        @media (max-width: 1200px) {
+          .orders-kpi-cards-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+          .orders-kpi-card.card-volume {
+            grid-column: span 2;
+          }
+        }
+        @media (max-width: 768px) {
+          .orders-kpi-cards-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+          .orders-kpi-card.card-volume {
+            grid-column: span 2;
+          }
+        }
+        @media (max-width: 480px) {
+          .orders-kpi-cards-grid {
+            grid-template-columns: 1fr;
+          }
+          .orders-kpi-card.card-volume {
+            grid-column: span 1;
+          }
         }
 
         /* Search & Filter Row */

@@ -106,7 +106,7 @@ export async function createProduct(productData) {
   const cleanFeatures = Array.isArray(productData.features)
     ? productData.features
         .filter(f => f && (typeof f === 'string' || (f.name && f.name.trim())))
-        .map(f => typeof f === 'string' ? { name: 'Feature', value: f.trim() } : { name: f.name.trim(), value: (f.value || '').trim() })
+        .map(f => typeof f === 'string' ? { name: 'Feature', value: f.trim(), type: 'feature' } : { name: f.name.trim(), value: (f.value || '').trim(), ...(f.type ? { type: f.type } : {}) })
     : [];
 
   // Clean additionalInformation array
@@ -203,7 +203,7 @@ export async function updateProduct(productId, updates) {
   if (updates.features !== undefined && Array.isArray(updates.features)) {
     rawUpdates.features = updates.features
       .filter(f => f && (typeof f === 'string' || (f.name && f.name.trim())))
-      .map(f => typeof f === 'string' ? { name: 'Feature', value: f.trim() } : { name: f.name.trim(), value: (f.value || '').trim() });
+      .map(f => typeof f === 'string' ? { name: 'Feature', value: f.trim(), type: 'feature' } : { name: f.name.trim(), value: (f.value || '').trim(), ...(f.type ? { type: f.type } : {}) });
   }
   if (updates.additionalInformation !== undefined && Array.isArray(updates.additionalInformation)) {
     rawUpdates.additionalInformation = updates.additionalInformation

@@ -20,7 +20,6 @@ export default function Navbar({
   selectedCategory,
   setSelectedCategory,
   onOpenAdmin,
-  onOpenTrackOrder,
   onNavigateSubcategory
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -128,10 +127,6 @@ export default function Navbar({
           <div className="sardar-top-links">
             <button onClick={() => handleNavClick('contact')} className="sardar-top-btn">
               <MapPin size={12} /> Showroom: Vyasarpadi, Chennai
-            </button>
-            <span className="sardar-dot-sep">•</span>
-            <button onClick={onOpenTrackOrder} className="sardar-top-btn">
-              <Package size={12} /> Track Order
             </button>
             <span className="sardar-dot-sep">•</span>
             <a 
@@ -642,14 +637,6 @@ export default function Navbar({
                 onClick={() => handleNavClick('contact')}
               >
                 <span>📍 Showroom Address &amp; Map</span>
-                <ArrowRight size={15} />
-              </button>
-
-              <button 
-                className="sardar-drawer-nav-item"
-                onClick={() => { setMobileMenuOpen(false); onOpenTrackOrder(); }}
-              >
-                <span>📦 Track Your Live Order</span>
                 <ArrowRight size={15} />
               </button>
 

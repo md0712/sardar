@@ -12,6 +12,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { categories as defaultCategories } from '../data/products';
 
 const CATEGORIES_COLLECTION = 'categories';
 

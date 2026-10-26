@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { FaInstagram, FaFacebookF, FaYoutube, FaWhatsapp } from 'react-icons/fa';
 
-export default function Footer({ onNavigate, onOpenAdmin, onOpenTrackOrder, storeSettings }) {
+export default function Footer({ onNavigate, onOpenAdmin, storeSettings }) {
   const [activePolicy, setActivePolicy] = useState(null);
 
   const handleLink = (page) => {
@@ -78,7 +78,7 @@ export default function Footer({ onNavigate, onOpenAdmin, onOpenTrackOrder, stor
         'Express Chennai Delivery: Within 24 to 48 hours with complimentary assembly.',
         'Tamil Nadu & South India: Dispatched via dedicated logistics network in 2-4 business days.',
         'White-glove unboxing and room-of-choice placement available.',
-        'Real-time live dispatch tracking available right from our Track Order portal.'
+        'Doorstep handover and certified transit with genuine manufacturer warranties.'
       ]
     },
     privacy: {
@@ -306,13 +306,6 @@ export default function Footer({ onNavigate, onOpenAdmin, onOpenTrackOrder, stor
                 <span>Customer Care</span>
               </h3>
               <ul className="footer-nav-list">
-                <li>
-                  <button onClick={onOpenTrackOrder} className="track-order-highlight">
-                    <Package size={15} className="track-box-icon" />
-                    <span>Track Order Status</span>
-                    <span className="live-tag">LIVE</span>
-                  </button>
-                </li>
                 <li>
                   <button onClick={() => setActivePolicy('returns')}>
                     <ChevronRight size={14} className="nav-arrow" />

@@ -4,7 +4,6 @@ import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
 import AdminModal from './components/AdminModal';
-import TrackOrderModal from './components/TrackOrderModal';
 import InvoiceModal from './components/InvoiceModal';
 import MobileBottomNav from './components/MobileBottomNav';
 import IntroLoader from './components/IntroLoader';
@@ -168,12 +167,11 @@ function AppContent() {
 
   useEffect(() => {
     const unsub = subscribeToCategories((liveCats) => {
-      if (liveCats && liveCats.length > 0) {
-        setCategories(liveCats);
-        try {
-          localStorage.setItem('sef_categories', JSON.stringify(liveCats));
-        } catch (e) {}
-      }
+      const cats = Array.isArray(liveCats) ? liveCats : [];
+      setCategories(cats);
+      try {
+        localStorage.setItem('sef_categories', JSON.stringify(cats));
+      } catch (e) {}
     });
     return () => unsub();
   }, []);
@@ -211,8 +209,6 @@ function AppContent() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [isTrackOrderOpen, setIsTrackOrderOpen] = useState(false);
-  const [trackOrderId, setTrackOrderId] = useState('');
   const [activeInvoiceOrder, setActiveInvoiceOrder] = useState(null);
 
   // Search & Filters
@@ -240,6 +236,7 @@ function AppContent() {
 
   useEffect(() => {
     try {
+      localStorage.setItem('sef_catalog_products', JSON.stringify(catalogProducts));
       localStorage.setItem('hk_catalog_products', JSON.stringify(catalogProducts));
     } catch {}
   }, [catalogProducts]);
@@ -417,11 +414,7 @@ function AppContent() {
     }
   };
 
-  // Track Order & Invoice openers
-  const handleOpenTrackOrder = (orderId = '') => {
-    setTrackOrderId(orderId);
-    setIsTrackOrderOpen(true);
-  };
+  // Invoice opener
 
   const handleViewInvoice = (order) => {
     setActiveInvoiceOrder(order);
@@ -513,7 +506,6 @@ function AppContent() {
           }
         }}
         onOpenAdmin={handleOpenAdminPanel}
-        onOpenTrackOrder={handleOpenTrackOrder}
         onNavigateSubcategory={handleNavigate}
       />
 
@@ -545,6 +537,7 @@ function AppContent() {
             selectedSubcategory={selectedSubcategory}
             setSelectedSubcategory={setSelectedSubcategory}
             products={catalogProducts}
+            categories={categories}
           />
         )}
 
@@ -560,6 +553,7 @@ function AppContent() {
             selectedSubcategory={selectedSubcategory}
             setSelectedSubcategory={setSelectedSubcategory}
             products={catalogProducts}
+            categories={categories}
           />
         )}
 
@@ -575,12 +569,14 @@ function AppContent() {
             selectedSubcategory={selectedSubcategory}
             setSelectedSubcategory={setSelectedSubcategory}
             products={catalogProducts}
+            categories={categories}
           />
         )}
 
         {currentPage === 'product-details' && (
           <ProductDetails
             product={selectedProduct}
+            products={catalogProducts}
             onBack={() => handleNavigate(selectedProduct?.category || 'home')}
             onAddToCart={handleAddToCart}
             onSelectProduct={handleSelectProduct}
@@ -619,7 +615,6 @@ function AppContent() {
       <Footer 
         onNavigate={handleNavigate} 
         onOpenAdmin={handleOpenAdminPanel}
-        onOpenTrackOrder={handleOpenTrackOrder}
         storeSettings={storeSettings}
       />
 
@@ -634,7 +629,6 @@ function AppContent() {
         onRemoveItem={handleRemoveFromCart}
         onClearCart={handleClearCart}
         onPlaceOrder={handlePlaceOrder}
-        onOpenTrackOrder={handleOpenTrackOrder}
         onViewInvoice={handleViewInvoice}
         onNavigate={handleNavigate}
       />
@@ -662,17 +656,9 @@ function AppContent() {
         onEditOrder={handleEditOrder}
         onDeleteOrder={handleDeleteOrder}
         onViewInvoice={handleViewInvoice}
+        categories={categories}
       />
 
-      {/* Customer Live Order Tracking Modal */}
-      <TrackOrderModal
-        isOpen={isTrackOrderOpen}
-        onClose={() => setIsTrackOrderOpen(false)}
-        orders={orders}
-        products={catalogProducts}
-        initialOrderId={trackOrderId}
-        onViewInvoice={handleViewInvoice}
-      />
 
       {/* Professional Tax Invoice Sheet Modal */}
       <InvoiceModal

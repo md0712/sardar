@@ -12,7 +12,8 @@ export default function Furniture({
   searchQuery = '',
   selectedSubcategory = 'all',
   setSelectedSubcategory,
-  products: customProducts
+  products: customProducts,
+  categories = []
 }) {
   const allProducts = Array.isArray(customProducts) ? customProducts : (customProducts || []);
   const [selectedSubcat, setSelectedSubcat] = useState(selectedSubcategory);
@@ -24,56 +25,115 @@ export default function Furniture({
   }, [selectedSubcategory]);
 
   const [sortBy, setSortBy] = useState('popular');
-  const [maxPrice, setMaxPrice] = useState(60000);
+  const [maxPrice, setMaxPrice] = useState(200000);
 
   const furnitureProducts = useMemo(() => {
-    return allProducts.filter(p => p.category === 'furniture');
+    return allProducts.filter(p => {
+      const cat = (p.category || '').toLowerCase().trim();
+      return cat === 'furniture' || cat === 'furnitures';
+    });
   }, [allProducts]);
 
   const subcategories = useMemo(() => {
     const list = [
-      { id: 'all', label: 'All Furniture' },
+      { id: 'all', label: 'All Furniture' }
+    ];
+    const known = new Set(['all']);
+
+    // 1. Categories created in Categories page for Furniture
+    (categories || []).forEach(c => {
+      const cDept = (c.category || '').toLowerCase().trim();
+      if (cDept === 'furniture' || cDept === 'furnitures') {
+        const idNorm = (c.id || c.name || '').toLowerCase().trim();
+        const normSingular = idNorm.replace(/s$/, '');
+        const exists = Array.from(known).some(k => k.replace(/s$/, '') === normSingular);
+        if (!exists) {
+          known.add(idNorm);
+          list.push({
+            id: c.id,
+            label: c.name || (c.id.charAt(0).toUpperCase() + c.id.slice(1))
+          });
+        }
+      }
+    });
+
+    // 2. Subcategories from live database products
+    furnitureProducts.forEach(p => {
+      if (p.subcategory) {
+        const idNorm = p.subcategory.toLowerCase().trim();
+        const normSingular = idNorm.replace(/s$/, '');
+        const exists = Array.from(known).some(k => k.replace(/s$/, '') === normSingular);
+        if (!exists) {
+          known.add(idNorm);
+          list.push({
+            id: p.subcategory,
+            label: p.subcategory.charAt(0).toUpperCase() + p.subcategory.slice(1).replace(/-/g, ' ')
+          });
+        }
+      }
+    });
+
+    // 3. Fallbacks
+    const defaults = [
       { id: 'sofas', label: 'Sofas & Recliners' },
       { id: 'beds', label: 'Beds & Mattresses' },
       { id: 'dining', label: 'Dining Sets' },
       { id: 'wardrobes', label: 'Wardrobes' },
       { id: 'chairs', label: 'Chairs & Study' }
     ];
-    const known = new Set(list.map(s => s.id.toLowerCase()));
-    furnitureProducts.forEach(p => {
-      if (p.subcategory && !known.has(p.subcategory.toLowerCase())) {
-        known.add(p.subcategory.toLowerCase());
-        list.push({
-          id: p.subcategory,
-          label: p.subcategory.charAt(0).toUpperCase() + p.subcategory.slice(1).replace(/-/g, ' ')
-        });
+    defaults.forEach(d => {
+      const normSingular = d.id.replace(/s$/, '');
+      const exists = Array.from(known).some(k => k.replace(/s$/, '') === normSingular);
+      if (!exists) {
+        known.add(d.id);
+        list.push(d);
       }
     });
-    if (selectedSubcat && selectedSubcat !== 'all' && !known.has(selectedSubcat.toLowerCase())) {
-      list.push({
-        id: selectedSubcat,
-        label: selectedSubcat.charAt(0).toUpperCase() + selectedSubcat.slice(1).replace(/-/g, ' ')
-      });
+
+    if (selectedSubcat && selectedSubcat !== 'all') {
+      const selNorm = selectedSubcat.toLowerCase().replace(/s$/, '');
+      const exists = Array.from(known).some(k => k.replace(/s$/, '') === selNorm);
+      if (!exists) {
+        list.push({
+          id: selectedSubcat,
+          label: selectedSubcat.charAt(0).toUpperCase() + selectedSubcat.slice(1).replace(/-/g, ' ')
+        });
+      }
     }
+
     return list;
-  }, [furnitureProducts, selectedSubcat]);
+  }, [categories, furnitureProducts, selectedSubcat]);
 
   const filteredProducts = useMemo(() => {
     return furnitureProducts.filter(p => {
+      const norm = (s) => (s || '').toLowerCase().trim().replace(/s$/, '');
       const matchSubcat = selectedSubcat === 'all' || 
         p.subcategory === selectedSubcat || 
-        (p.subcategory && p.subcategory.toLowerCase() === selectedSubcat.toLowerCase()) ||
-        (p.category && p.category.toLowerCase() === selectedSubcat.toLowerCase());
-      const matchPrice = p.price <= maxPrice;
+        (p.subcategory && norm(p.subcategory) === norm(selectedSubcat)) ||
+        (p.category && norm(p.category) === norm(selectedSubcat));
+      const pPrice = Number(p.price ?? p.sellingPrice ?? 0);
+      const matchPrice = pPrice <= maxPrice;
       const matchSearch = searchQuery === '' || 
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.description.toLowerCase().includes(searchQuery.toLowerCase());
+        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchSubcat && matchPrice && matchSearch;
     }).sort((a, b) => {
-      if (sortBy === 'price-low') return a.price - b.price;
-      if (sortBy === 'price-high') return b.price - a.price;
-      if (sortBy === 'discount') return b.discount - a.discount;
-      if (sortBy === 'rating') return b.rating - a.rating;
+      const priceA = Number(a.price ?? a.sellingPrice ?? 0);
+      const priceB = Number(b.price ?? b.sellingPrice ?? 0);
+      if (sortBy === 'price-low') return priceA - priceB;
+      if (sortBy === 'price-high') return priceB - priceA;
+      if (sortBy === 'discount') return (b.discount || 0) - (a.discount || 0);
+      if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
+      if (sortBy === 'name-asc') {
+        const nameA = (a.name || a.title || '').toLowerCase();
+        const nameB = (b.name || b.title || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      }
+      if (sortBy === 'name-desc') {
+        const nameA = (a.name || a.title || '').toLowerCase();
+        const nameB = (b.name || b.title || '').toLowerCase();
+        return nameB.localeCompare(nameA);
+      }
       return 0; // Default popular
     });
   }, [furnitureProducts, selectedSubcat, maxPrice, searchQuery, sortBy]);
@@ -130,8 +190,8 @@ export default function Furniture({
               <span className="price-label">Max: ₹{maxPrice.toLocaleString('en-IN')}</span>
               <input 
                 type="range" 
-                min="5000" 
-                max="60000" 
+                min="1000" 
+                max="200000" 
                 step="2000"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(Number(e.target.value))}
@@ -147,6 +207,8 @@ export default function Furniture({
                 className="sort-dropdown"
               >
                 <option value="popular">Sort: Popularity</option>
+                <option value="name-asc">Alphabetical: A to Z</option>
+                <option value="name-desc">Alphabetical: Z to A</option>
                 <option value="price-low">Price: Low to High</option>
                 <option value="price-high">Price: High to Low</option>
                 <option value="discount">Highest Discount</option>

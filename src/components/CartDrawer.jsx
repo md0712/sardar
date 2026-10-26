@@ -14,7 +14,6 @@ export default function CartDrawer({
   onRemoveItem, 
   onClearCart,
   onPlaceOrder,
-  onOpenTrackOrder,
   onViewInvoice,
   onNavigate,
   products = [],
@@ -162,7 +161,7 @@ export default function CartDrawer({
       paymentMethod: billingForm.paymentMethod,
       paymentStatus: billingForm.paymentMethod.includes('COD') || billingForm.paymentMethod.includes('Cash') ? 'Pending (COD)' : 'Paid Online',
       status: 'Order Placed',
-      courier: 'Sardar Express Delivery Fleet',
+      courier: 'Porter Platform Logistics',
       trackingNumber: `EXP-CH-${Math.floor(10000 + Math.random() * 90000)}`
     };
 
@@ -295,8 +294,11 @@ export default function CartDrawer({
                     </div>
                   )}
                   <div className="summary-row">
-                    <span>Delivery &amp; Installation</span>
-                    <span className="free-text">FREE</span>
+                    <span>Delivery Charge (via Porter)</span>
+                    <span style={{ fontWeight: 600, color: '#0f172a' }}>₹0</span>
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '-4px', marginBottom: '8px' }}>
+                    Sent via Porter platform • Porter charge added to bill by shopkeeper
                   </div>
                   <div className="summary-row total-row">
                     <strong>Total Amount</strong>
@@ -440,8 +442,11 @@ export default function CartDrawer({
                   </div>
                 )}
                 <div className="summary-row">
-                  <span>Delivery &amp; Installation</span>
-                  <span className="free-text">FREE</span>
+                  <span>Delivery Charge (via Porter)</span>
+                  <span style={{ fontWeight: 600, color: '#0f172a' }}>₹0</span>
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '-4px', marginBottom: '8px' }}>
+                  Sent via Porter platform • Porter charge added to bill by shopkeeper
                 </div>
                 <div className="summary-row total-row">
                   <strong>Total Payable</strong>
@@ -491,15 +496,6 @@ export default function CartDrawer({
                 <FileText size={16} /> View &amp; Print Tax Invoice (Bill)
               </button>
 
-              <button 
-                className="btn-track-order-action"
-                onClick={() => {
-                  onClose();
-                  if (onOpenTrackOrder) onOpenTrackOrder(lastPlacedOrder.id);
-                }}
-              >
-                <Package size={16} /> Track Live Delivery Status
-              </button>
 
               <button 
                 className="btn-back-showroom"

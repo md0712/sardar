@@ -6,8 +6,9 @@ import {
 import CategoryCard from '../components/CategoryCard';
 import ProductCard from '../components/ProductCard';
 import OfferBanner from '../components/OfferBanner';
-import { storeInfo } from '../data/products';
+import { storeInfo, categories as defaultCategories } from '../data/products';
 import { subscribeToReviews } from '../services/reviewService';
+import { subscribeToCategories } from '../services/categoryService';
 
 export default function Home({ 
   onNavigate, 
@@ -21,9 +22,37 @@ export default function Home({
   categories: propCategories
 }) {
   const allProducts = Array.isArray(customProducts) ? customProducts : (customProducts || []);
-  const activeCategories = (Array.isArray(propCategories) && propCategories.length > 0)
-    ? propCategories
-    : [];
+  const [liveCategories, setLiveCategories] = useState(() => {
+    if (Array.isArray(propCategories) && propCategories.length > 0) return propCategories;
+    try {
+      const saved = localStorage.getItem('sef_categories');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : (defaultCategories || []);
+    } catch {
+      return defaultCategories || [];
+    }
+  });
+
+  useEffect(() => {
+    if (Array.isArray(propCategories) && propCategories.length > 0) {
+      setLiveCategories(propCategories);
+    }
+  }, [propCategories]);
+
+  useEffect(() => {
+    const unsub = subscribeToCategories((list) => {
+      if (Array.isArray(list) && list.length > 0) {
+        setLiveCategories(list);
+      }
+    });
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, []);
+
+  const activeCategories = (Array.isArray(liveCategories) && liveCategories.length > 0)
+    ? liveCategories
+    : ((Array.isArray(propCategories) && propCategories.length > 0) ? propCategories : defaultCategories);
   const [activeTab, setActiveTab] = useState('all');
   const [heroSlide, setHeroSlide] = useState(0);
 
@@ -108,13 +137,23 @@ export default function Home({
     setHeroSlide((prev) => (prev + 1) % heroSlides.length);
   };
 
+  const isMatchDept = (productCategory, targetTab) => {
+    const p = (productCategory || '').toLowerCase().trim();
+    const t = (targetTab || '').toLowerCase().trim();
+    if (t === 'all') return true;
+    if (t === 'furniture') return p === 'furniture' || p === 'furnitures';
+    if (t === 'electronics') return p === 'electronics' || p === 'electronic';
+    if (t === 'appliances') return p === 'appliances' || p === 'appliance' || p === 'home-appliances' || p === 'home appliances';
+    return p === t;
+  };
+
   const filteredFeatured = allProducts.filter(p => {
     if (activeTab === 'all') return p.featured;
-    return p.featured && p.category === activeTab;
+    return p.featured && isMatchDept(p.category, activeTab);
   });
   const displayFeatured = filteredFeatured.length > 0 
     ? filteredFeatured 
-    : (activeTab === 'all' ? allProducts : allProducts.filter(p => p.category === activeTab));
+    : (activeTab === 'all' ? allProducts : allProducts.filter(p => isMatchDept(p.category, activeTab)));
 
   const activeHero = heroSlides[heroSlide];
 
@@ -284,21 +323,37 @@ export default function Home({
               const catName = (cat.name || '').toLowerCase().trim();
               const catDept = (cat.category || '').toLowerCase().trim();
 
+              const norm = (s) => (s || '').toLowerCase().trim().replace(/s$/, '');
+
               // Calculate live model count directly from backend Firestore database products
               const liveCount = allProducts.filter((p) => {
                 const pSub = (p.subcategory || '').toLowerCase().trim();
                 const pCat = (p.category || '').toLowerCase().trim();
-                const pName = (p.name || '').toLowerCase().trim();
+                const pName = (p.name || p.title || '').toLowerCase().trim();
 
-                // Direct subcategory match
-                if (pSub && (pSub === catId || pSub === catName)) return true;
-                // Match parent department if category is top-level
-                if (pCat && (pCat === catId || pCat === catName)) return true;
-                // Department match + subcategory
-                if (catDept && pCat === catDept && pSub && pSub === catId) return true;
-                // Keyword match
-                if (catId && pSub.includes(catId)) return true;
-                if (catName && (pSub.includes(catName) || pName.includes(catName))) return true;
+                // If category has a specific parent department, prevent cross-department counting!
+                if (catDept && pCat && catDept !== pCat) {
+                  return false;
+                }
+
+                // Direct subcategory match with singular/plural tolerance (e.g. sofa <-> sofas, refrigerator <-> refrigerators)
+                if (pSub && (norm(pSub) === norm(catId) || norm(pSub) === norm(catName))) {
+                  return true;
+                }
+
+                // If this category circle represents the entire department (e.g. appliances)
+                if (norm(catId) === norm(pCat) || norm(catName) === norm(pCat)) {
+                  return true;
+                }
+
+                // Department match + exact subcategory
+                if (catDept && pCat === catDept && pSub && norm(pSub) === norm(catId)) {
+                  return true;
+                }
+
+                // Keyword match within same department
+                if (norm(catId) && pSub.includes(norm(catId))) return true;
+                if (norm(catName) && (pSub.includes(norm(catName)) || pName.includes(norm(catName)))) return true;
                 return false;
               }).length;
 
